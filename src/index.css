@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-[#0a0a0a] text-white selection:bg-[#bc13fe]/30 selection:text-white;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+}
+
+@layer components {
+  .neon-border {
+    @apply relative border border-white/10 transition-all duration-300;
+  }
+
+  .neon-border:hover {
+    @apply border-[#bc13fe]/50 shadow-[0_0_20px_rgba(188,19,254,0.3)];
+  }
+
+  .gradient-text {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-[#bc13fe] via-[#3b82f6] to-[#06b6d4] animate-gradient-x;
+  }
+
+  .glass-panel {
+    @apply bg-white/5 backdrop-blur-md border border-white/10;
+  }
+
+  .btn-primary {
+    @apply relative overflow-hidden rounded-full px-8 py-3 font-bold text-white transition-all duration-300;
+    background: linear-gradient(90deg, #bc13fe, #3b82f6);
+  }
+
+  .btn-primary:hover {
+    @apply scale-105 shadow-[0_0_30px_rgba(188,19,254,0.5)];
+  }
+
+  .shimmer {
+    @apply relative overflow-hidden before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_infinite] before:bg-gradient-to-r before:from-transparent before:via-white/10 before:to-transparent;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-[#0a0a0a];
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-white/10 rounded-full hover:bg-[#bc13fe]/50 transition-colors;
+}
