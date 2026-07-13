@@ -1883,5 +1883,17 @@
     "AppleMusicLink": "https://music.apple.com/us/album/slippery-when-wet/1422954626?uo=4",
     "TrackCount": 10,
     "ExactReleaseDate": "1986-08-18"
+  },
+  {
+    "Album": "A Fever You Can't Sweat Out",
+    "Artist": "Panic! At the Disco",
+    "Rating": 9.8,
+    "Genre": "Emo Pop, Pop Punk, Baroque Pop",
+    "Release Year": 2005,
+    "Length": "00:40:39",
+    "CoverArt": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTURiQQDnIjjhKQh-dayL6itQbIlQpadANybIC1vyOthw&s=10",
+    "AppleMusicLink": "https://music.apple.com/us/album/a-fever-you-cant-sweat-out-but-lofi/1784562836?uo=4",
+    "TrackCount": 11,
+    "ExactReleaseDate": "2024-12-27"
   }
 ]
