@@ -5,8 +5,8 @@ import type { AlbumEntry } from '../types/album';
 
 async function fetchGitHubFile() {
   const token = import.meta.env.VITE_GITHUB_TOKEN;
-  const repo = import.meta.env.VITE_GITHUB_REPO;
-  const path = import.meta.env.VITE_GITHUB_FILE_PATH;
+  const repo = import.meta.env.VITE_GITHUB_REPO || 'Dylfive/Personal-Website';
+  const path = import.meta.env.VITE_GITHUB_FILE_PATH || 'src/data/Album-Data.json';
   const branch = import.meta.env.VITE_GITHUB_BRANCH || 'main';
 
   if (!token || !repo || !path) {
