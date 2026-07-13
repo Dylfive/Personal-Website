@@ -1907,5 +1907,17 @@
     "AppleMusicLink": "https://music.apple.com/us/album/slippery-when-wet/1422954626?uo=4",
     "TrackCount": 10,
     "ExactReleaseDate": "1986-08-18"
+  },
+  {
+    "Album": "Spice",
+    "Artist": "Spice Girls",
+    "Rating": 8,
+    "Genre": "Pop, Dance-Pop",
+    "Release Year": 1996,
+    "Length": "00:39:53",
+    "CoverArt": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQqjugs9f0YeUT3WxliXeIx6dXRhRsL59nGMIXUr3M_UA&s",
+    "AppleMusicLink": "https://music.apple.com/us/album/wannabe/6787950699?uo=4",
+    "TrackCount": 14,
+    "ExactReleaseDate": "1996-06-26"
   }
 ]
