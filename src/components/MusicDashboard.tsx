@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Music, ExternalLink, Star, Calendar, Clock, Trophy, Disc3, Search, ArrowUpDown } from 'lucide-react';
+import { ChevronRight, Music, ExternalLink, Star, Calendar, Clock, Trophy, Disc3, Search, ArrowUpDown } from 'lucide-react';
 import rawAlbumData from '../data/Album-Data.json';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -307,13 +308,50 @@ const MusicDashboard = () => {
 
   const stats = useMemo(() => computeStats(albums), [albums]);
 
+  const navigate = useNavigate();
+  const tapCountRef = useRef(0);
+  const tapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [secretFlash, setSecretFlash] = useState(false);
+
+  const handleSecretTap = () => {
+    tapCountRef.current += 1;
+    if (tapTimerRef.current) clearTimeout(tapTimerRef.current);
+
+    if (tapCountRef.current >= 3) {
+      tapCountRef.current = 0;
+      setSecretFlash(true);
+      setTimeout(() => {
+        setSecretFlash(false);
+        navigate('/intake');
+      }, 600);
+      return;
+    }
+
+    tapTimerRef.current = setTimeout(() => {
+      tapCountRef.current = 0;
+    }, 2000);
+  };
+
   return (
     <div className="glass-panel p-6 rounded-3xl neon-border overflow-hidden">
+      {/* Secret flash overlay */}
+      {secretFlash && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+          <div className="px-6 py-3 rounded-full bg-neon-purple/90 text-white font-bold text-lg shadow-[0_0_40px_rgba(188,19,254,0.8)] animate-ping-once">
+            🔓 Access Granted
+          </div>
+        </div>
+      )}
+
       {/* Section header */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h3 className="text-2xl font-bold flex items-center gap-2">
-            <Music className="text-[#bc13fe]" />
+            <Music
+              className="text-[#bc13fe] cursor-pointer select-none"
+              onClick={handleSecretTap}
+              onTouchEnd={(e) => { e.preventDefault(); handleSecretTap(); }}
+            />
             Music Taste Dashboard
           </h3>
           <p className="text-white/40 text-sm mt-1">{albums.length} albums rated · powered by personal data</p>

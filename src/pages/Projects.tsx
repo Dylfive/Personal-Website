@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { ExternalLink, Code, Music, Play, Layout } from 'lucide-react';
+import { ExternalLink, Code, Play, Layout } from 'lucide-react';
 import MusicDashboard from '../components/MusicDashboard';
 
 

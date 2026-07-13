@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Coffee, Code, Book, Gamepad2, Heart, Music, Camera, Shield, Zap } from 'lucide-react';
+import { Code, Music, Camera, Shield, Zap } from 'lucide-react';
 
 const About = () => {
   const funFacts = [

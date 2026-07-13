@@ -4,10 +4,11 @@ import Home from './pages/Home';
 import Resume from './pages/Resume';
 import Projects from './pages/Projects';
 import About from './pages/About';
+import IntakePage from './pages/IntakePage';
 
 function App() {
   return (
-    <Router>
+    <Router basename="/Personal-Website/">
       <div className="min-h-screen bg-background text-foreground selection:bg-neon-purple/30">
         <Navbar />
         <main className="pt-20">
@@ -16,6 +17,7 @@ function App() {
             <Route path="/resume" element={<Resume />} />
             <Route path="/projects" element={<Projects />} />
             <Route path="/about" element={<About />} />
+            <Route path="/intake" element={<IntakePage />} />
           </Routes>
         </main>
         <footer className="py-10 text-center text-white/40 text-sm border-t border-white/5">
