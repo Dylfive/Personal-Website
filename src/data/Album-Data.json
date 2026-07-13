@@ -1895,5 +1895,17 @@
     "AppleMusicLink": "https://music.apple.com/us/album/a-fever-you-cant-sweat-out-but-lofi/1784562836?uo=4",
     "TrackCount": 11,
     "ExactReleaseDate": "2024-12-27"
+  },
+  {
+    "Album": "London Calling",
+    "Artist": "The Clash",
+    "Rating": 8.5,
+    "Genre": "Punk Rock, New Wave",
+    "Release Year": 1979,
+    "Length": "01:04:36",
+    "CoverArt": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/93/cb/20/93cb201b-154b-7b74-a10b-48fbef9b3281/888880348937.jpg/600x600bb.jpg",
+    "AppleMusicLink": "https://music.apple.com/us/album/london-calling-expanded-edition/267986379?uo=4",
+    "TrackCount": 40,
+    "ExactReleaseDate": "1979-12-14"
   }
 ]
