@@ -35,6 +35,13 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          VITE_INTAKE_PIN: ${{ secrets.VITE_INTAKE_PIN }}
+          VITE_GITHUB_TOKEN: ${{ secrets.VITE_GITHUB_TOKEN }}
+          VITE_GITHUB_REPO: ${{ secrets.VITE_GITHUB_REPO || 'Dylfive/Personal-Website' }}
+          VITE_GITHUB_FILE_PATH: ${{ secrets.VITE_GITHUB_FILE_PATH || 'src/data/Album-Data.json' }}
+          VITE_GITHUB_BRANCH: ${{ secrets.VITE_GITHUB_BRANCH || 'main' }}
+          VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
