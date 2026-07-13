@@ -1919,5 +1919,17 @@
     "AppleMusicLink": "https://music.apple.com/us/album/wannabe/6787950699?uo=4",
     "TrackCount": 14,
     "ExactReleaseDate": "1996-06-26"
+  },
+  {
+    "Album": "El Camino",
+    "Artist": "The Black Keys",
+    "Rating": 8.6,
+    "Genre": "Blues Rock, Garage Rock",
+    "Release Year": 2011,
+    "Length": "00:39:07",
+    "CoverArt": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/55/39/ca/5539caf8-333e-5ad2-06ca-eaf5d84cd264/mzm.nmxwulyo.jpg/600x600bb.jpg",
+    "AppleMusicLink": "https://music.apple.com/us/album/el-camino/1052966287?uo=4",
+    "TrackCount": 12,
+    "ExactReleaseDate": "2011-12-06"
   }
 ]
