@@ -60,18 +60,18 @@ const Resume = () => {
   const experiences = [
     {
       company: "BCI",
-      role: "Technical Business Analyst",
-      period: "May 2024 - Present",
+      role: "Technical Business Analyst (Co-op)",
+      period: "May 2024 – January 2026",
       details: [
         "Administered Azure enterprise-level tools for 10,000+ users, ensuring high availability and security.",
-        "Automated cloud-based administrative tasks using PowerShell and Microsoft Graph API, significantly reducing manual overhead.",
-        "Optimized complex project workflows through seamless REST API integrations with SharePoint, Jira, and Service Now.",
+        "Architected and deployed an automated email management system using Microsoft Graph API, eliminating thousands of manual operations per month across the enterprise.",
+        "Optimized complex project workflows through seamless REST API integrations with SharePoint, Jira, and ServiceNow, reducing cross-team overhead significantly.",
       ]
     },
     {
       company: "Matrix Studios",
       role: "Co-founder / Lead Developer",
-      period: "September 2023 - Present",
+      period: "September 2023 – Present",
       details: [
         "Designed and deployed professional websites tailored for the beauty and skin industry, including ehehair.com.",
         "Collaborated directly with business owners to translate aesthetic visions into custom digital solutions.",
@@ -81,7 +81,7 @@ const Resume = () => {
     {
       company: "Global Nexus",
       role: "Junior Software Engineer",
-      period: "June 2023 - August 2023",
+      period: "June 2023 – August 2023",
       details: [
         "Contributed to a robust Ruby on Rails codebase for a web-based e-learning platform.",
         "Drafted and managed comprehensive technical documentation using Jekyll.",
@@ -92,8 +92,8 @@ const Resume = () => {
 
   const skills = [
     { category: "Cloud & Automation", items: ["Azure", "PowerShell", "Microsoft Graph API", "REST API"], color: "neon-blue", icon: <Cloud className="w-4 h-4" /> },
-    { category: "Full Stack", items: ["WordPress", "WooCommerce", "Ruby on Rails", "JavaScript", "Python", "SQL", "C++"], color: "neon-purple", icon: <Code className="w-4 h-4" /> },
-    { category: "Tools & Systems", items: ["SharePoint", "Jira", "Service Now", "Jekyll", "Linux", "Git", "Bash"], color: "neon-cyan", icon: <Terminal className="w-4 h-4" /> },
+    { category: "Full Stack", items: ["React", "TypeScript", "Vite", "Tailwind CSS", "Framer Motion", "Node.js", "WordPress", "WooCommerce", "Ruby on Rails", "JavaScript", "Python", "SQL", "C++"], color: "neon-purple", icon: <Code className="w-4 h-4" /> },
+    { category: "Tools & Systems", items: ["SharePoint", "Jira", "ServiceNow", "Jekyll", "Linux", "Git", "Bash"], color: "neon-cyan", icon: <Terminal className="w-4 h-4" /> },
   ];
 
   return (
@@ -105,11 +105,11 @@ const Resume = () => {
       >
         <div>
           <h1 className="text-5xl font-black mb-4">Interactive <span className="gradient-text">Resume</span></h1>
-          <p className="text-white/60 text-lg">Recontextualizing professional experience for modern cloud and web engineering.</p>
         </div>
         <a 
-          href="/Dylan-Gauvin-Resume.pdf" 
-          target="_blank" 
+          href={`${import.meta.env.BASE_URL}Dylan-Gauvin-Resume.pdf`}
+          target="_blank"
+          rel="noopener noreferrer"
           className="px-6 py-2 rounded-full border border-neon-blue/50 text-neon-blue font-bold hover:bg-neon-blue/10 transition-all text-sm"
         >
           Download PDF
@@ -137,7 +137,7 @@ const Resume = () => {
                 <h3 className="text-xl font-bold">B.Sc. Computer Science Honours</h3>
                 <p className="text-neon-purple font-medium">York University</p>
               </div>
-              <span className="text-white/40 text-sm">2022 - 2027</span>
+              <span className="text-white/40 text-sm">2022 – 2027</span>
             </div>
             <div className="flex flex-wrap gap-2">
               <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-white/60">Algorithm Design</span>

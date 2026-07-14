@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X, Code2 } from 'lucide-react';
 
@@ -7,6 +7,7 @@ const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -18,7 +19,6 @@ const Navbar = () => {
     { name: 'Home', path: '/' },
     { name: 'Resume', path: '/resume' },
     { name: 'Projects', path: '/projects' },
-    { name: 'About', path: '/about' },
   ];
 
   return (
@@ -48,7 +48,12 @@ const Navbar = () => {
               )}
             </Link>
           ))}
-          <button className="btn-primary text-sm px-6 py-2">Get in touch</button>
+          <button
+            className="btn-primary text-sm px-6 py-2"
+            onClick={() => navigate('/contact')}
+          >
+            Get in touch
+          </button>
         </div>
 
         {/* Mobile Toggle */}
@@ -76,7 +81,12 @@ const Navbar = () => {
                 {link.name}
               </Link>
             ))}
-            <button className="btn-primary w-full mt-4">Get in touch</button>
+            <button
+              className="btn-primary w-full mt-4"
+              onClick={() => { setIsOpen(false); navigate('/contact'); }}
+            >
+              Get in touch
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
