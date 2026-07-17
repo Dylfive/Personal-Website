@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, AlertCircle, CheckCircle2, ArrowRight, AlertTriangle } from 'lucide-react';
 import RatingInput from './RatingInput';
 import ReviewScreen from './ReviewScreen';
-import { appendAlbumToGitHub } from '../../lib/albumStore';
+import { appendAlbumToGitHub, fetchGitHubAlbums } from '../../lib/albumStore';
 import { enrichAlbumData } from '../../lib/aiEnrichment';
 import type { AlbumEntry } from '../../types/album';
 import rawAlbumData from '../../data/Album-Data.json';
@@ -42,12 +42,27 @@ export default function AlbumIntakeForm() {
 
     // Duplicate check
     if (!bypassDuplicate) {
-      const existing = (rawAlbumData as AlbumEntry[]).find(
-        (a) => String(a.Album).toLowerCase().trim() === albumName.toLowerCase().trim()
-      );
-      if (existing) {
-        setDuplicateWarning(`"${existing.Album}" by ${existing.Artist} is already in your list with a rating of ${existing.Rating}/10. Are you sure you want to add it again?`);
-        return;
+      setFormState('ENRICHING');
+      try {
+        const liveAlbums = await fetchGitHubAlbums();
+        const existing = liveAlbums.find(
+          (a) => String(a.Album).toLowerCase().trim() === albumName.toLowerCase().trim()
+        );
+        if (existing) {
+          setDuplicateWarning(`"${existing.Album}" by ${existing.Artist} is already in your list with a rating of ${existing.Rating}/10. Are you sure you want to add it again?`);
+          setFormState('IDLE');
+          return;
+        }
+      } catch (err) {
+        console.warn('Failed to fetch live data for duplicate check', err);
+        const existing = (rawAlbumData as AlbumEntry[]).find(
+          (a) => String(a.Album).toLowerCase().trim() === albumName.toLowerCase().trim()
+        );
+        if (existing) {
+          setDuplicateWarning(`"${existing.Album}" by ${existing.Artist} is already in your list with a rating of ${existing.Rating}/10. Are you sure you want to add it again?`);
+          setFormState('IDLE');
+          return;
+        }
       }
     }
 

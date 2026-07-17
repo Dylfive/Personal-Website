@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Save, ArrowLeft, Disc3, Calendar, Clock, Music, AlertTriangle, Loader2, Frown, Link as LinkIcon } from 'lucide-react';
 import type { AlbumEntry } from '../../types/album';
@@ -16,6 +16,10 @@ export default function ReviewScreen({ draft, onSave, onBack, isSubmitting }: Re
   const [isSearchingGoogle, setIsSearchingGoogle] = useState(false);
   const [googleImages, setGoogleImages] = useState<string[]>([]);
   const [googleSearchError, setGoogleSearchError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setEditedDraft(draft);
+  }, [draft]);
 
   const handleChange = (field: keyof AlbumEntry, value: string | number) => {
     setEditedDraft(prev => ({ ...prev, [field]: value }));

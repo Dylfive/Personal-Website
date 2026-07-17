@@ -23,6 +23,8 @@ export function useItunesSearch() {
       return;
     }
 
+    const abortController = new AbortController();
+
     const timer = setTimeout(async () => {
       setIsSearching(true);
       setError(null);
@@ -30,21 +32,27 @@ export function useItunesSearch() {
         const url = `https://itunes.apple.com/search?term=${encodeURIComponent(
           query
         )}&entity=album&limit=8`;
-        const res = await fetch(url);
+        const res = await fetch(url, { signal: abortController.signal });
         if (!res.ok) {
           throw new Error('Failed to fetch from iTunes API');
         }
         const data = await res.json();
         setResults(data.results || []);
       } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') return;
         setError(err instanceof Error ? err.message : 'Unknown error');
         setResults([]);
       } finally {
-        setIsSearching(false);
+        if (!abortController.signal.aborted) {
+          setIsSearching(false);
+        }
       }
     }, 400); // 400ms debounce
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      abortController.abort();
+    };
   }, [query]);
 
   return { query, setQuery, results, isSearching, error };

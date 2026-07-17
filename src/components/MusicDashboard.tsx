@@ -5,18 +5,7 @@ import { ChevronRight, Music, ExternalLink, Star, Calendar, Clock, Trophy, Disc3
 import rawAlbumData from '../data/Album-Data.json';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-interface Album {
-  Album: string | number;
-  Artist: string;
-  Rating: number;
-  Genre: string;
-  'Release Year': number;
-  Length: string;
-  CoverArt?: string;
-  AppleMusicLink?: string;
-  TrackCount?: number;
-  ExactReleaseDate?: string;
-}
+import type { AlbumEntry as Album } from '../types/album';
 
 type SortOption = 'rating' | 'year_desc' | 'year_asc' | 'title' | 'artist';
 
@@ -30,8 +19,8 @@ function parseLengthToSeconds(length: string): number {
   if (parts.length === 3) {
     const asHMS = parts[0] * 3600 + parts[1] * 60 + parts[2];
     const asMS  = parts[0] * 60  + parts[1]; // ignore trailing :00
-    // If treating as H:M:S gives > 2 hours, it's almost certainly MM:SS:00
-    return asHMS > 7200 ? asMS : asHMS;
+    // If hours > 3, it's highly likely it's actually minutes from the old MM:SS:00 format
+    return parts[0] > 3 ? asMS : asHMS;
   }
   if (parts.length === 2) return parts[0] * 60 + parts[1];
   return 0;
@@ -213,7 +202,7 @@ const AlbumList = ({ albums }: { albums: Album[] }) => {
               const hasCover = album.CoverArt && album.CoverArt !== 'Not Found';
               // Find global rank for "rating" sort only, else hide it
               const isRatingSort = sortBy === 'rating';
-              const globalRank = isRatingSort ? albums.findIndex(a => a.Album === album.Album) + 1 : null;
+              const globalRank = isRatingSort ? albums.findIndex(a => a.Album === album.Album && a.Artist === album.Artist) + 1 : null;
 
               return (
                 <motion.div
@@ -351,6 +340,10 @@ const MusicDashboard = () => {
               className="text-[#bc13fe] cursor-pointer select-none"
               onClick={handleSecretTap}
               onTouchEnd={(e) => { e.preventDefault(); handleSecretTap(); }}
+              role="button"
+              tabIndex={0}
+              aria-label="Admin Settings"
+              onKeyDown={(e) => { if (e.key === 'Enter') handleSecretTap(); }}
             />
             Music Taste Dashboard
           </h3>

@@ -1,15 +1,18 @@
 import type { AlbumEntry } from '../types/album';
 
-// TODO: Option A (Supabase) is the recommended upgrade path for data persistence in the future.
-// Currently using Option B: GitHub Contents API directly from the browser.
+// Mutex for preventing race conditions
+let isSaving = false;
 
 async function fetchGitHubFile() {
-  const token = import.meta.env.VITE_GITHUB_TOKEN;
+  const token = localStorage.getItem('GITHUB_TOKEN');
   const repo = import.meta.env.VITE_GITHUB_REPO || 'Dylfive/Personal-Website';
   const path = import.meta.env.VITE_GITHUB_FILE_PATH || 'src/data/Album-Data.json';
   const branch = import.meta.env.VITE_GITHUB_BRANCH || 'main';
 
-  if (!token || !repo || !path) {
+  if (!token) {
+    throw new Error('Missing GitHub Token in Admin Settings.');
+  }
+  if (!repo || !path) {
     throw new Error('Missing GitHub configuration in environment variables.');
   }
 
@@ -38,6 +41,11 @@ async function fetchGitHubFile() {
   }
 
   return { albums, sha, token, repo, path, branch };
+}
+
+export async function fetchGitHubAlbums(): Promise<AlbumEntry[]> {
+  const { albums } = await fetchGitHubFile();
+  return albums;
 }
 
 async function commitGitHubFile(
@@ -70,31 +78,43 @@ async function commitGitHubFile(
 }
 
 export async function appendAlbumToGitHub(newAlbum: AlbumEntry): Promise<void> {
-  const { albums, sha, token, repo, path, branch } = await fetchGitHubFile();
-  albums.push(newAlbum);
-  await commitGitHubFile(
-    albums, sha,
-    `Add album: ${newAlbum.Album} by ${newAlbum.Artist} via Intake Form`,
-    token, repo, path, branch
-  );
+  if (isSaving) throw new Error('A save is already in progress. Please wait.');
+  isSaving = true;
+  try {
+    const { albums, sha, token, repo, path, branch } = await fetchGitHubFile();
+    albums.push(newAlbum);
+    await commitGitHubFile(
+      albums, sha,
+      `Add album: ${newAlbum.Album} by ${newAlbum.Artist} via Intake Form`,
+      token, repo, path, branch
+    );
+  } finally {
+    isSaving = false;
+  }
 }
 
 export async function updateAlbumOnGitHub(originalName: string, updatedAlbum: AlbumEntry): Promise<void> {
-  const { albums, sha, token, repo, path, branch } = await fetchGitHubFile();
+  if (isSaving) throw new Error('A save is already in progress. Please wait.');
+  isSaving = true;
+  try {
+    const { albums, sha, token, repo, path, branch } = await fetchGitHubFile();
 
-  const idx = albums.findIndex(
-    (a) => String(a.Album).toLowerCase().trim() === originalName.toLowerCase().trim()
-  );
+    const idx = albums.findIndex(
+      (a) => String(a.Album).toLowerCase().trim() === originalName.toLowerCase().trim()
+    );
 
-  if (idx === -1) {
-    throw new Error(`Could not find "${originalName}" in the dataset to update.`);
+    if (idx === -1) {
+      throw new Error(`Could not find "${originalName}" in the dataset to update.`);
+    }
+
+    albums[idx] = updatedAlbum;
+
+    await commitGitHubFile(
+      albums, sha,
+      `Update album: ${updatedAlbum.Album} by ${updatedAlbum.Artist} via Intake Form`,
+      token, repo, path, branch
+    );
+  } finally {
+    isSaving = false;
   }
-
-  albums[idx] = updatedAlbum;
-
-  await commitGitHubFile(
-    albums, sha,
-    `Update album: ${updatedAlbum.Album} by ${updatedAlbum.Artist} via Intake Form`,
-    token, repo, path, branch
-  );
 }

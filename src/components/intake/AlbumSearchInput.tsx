@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Search, Loader2 } from 'lucide-react';
 import { useItunesSearch } from '../../hooks/useItunesSearch';
 import type { ItunesResult } from '../../hooks/useItunesSearch';
@@ -9,18 +9,19 @@ interface AlbumSearchInputProps {
 
 export default function AlbumSearchInput({ onSelect }: AlbumSearchInputProps) {
   const { query, setQuery, results, isSearching, error } = useItunesSearch();
+  const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown if clicked outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setQuery(''); // Simple way to close dropdown by clearing query if they click away
+        setIsOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [setQuery]);
+  }, []);
 
   return (
     <div className="relative w-full" ref={dropdownRef}>
@@ -36,13 +37,14 @@ export default function AlbumSearchInput({ onSelect }: AlbumSearchInputProps) {
         <input
           type="text"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => { setQuery(e.target.value); setIsOpen(true); }}
+          onFocus={() => setIsOpen(true)}
           placeholder="Type an album name..."
           className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-neon-blue focus:border-transparent text-white transition-all placeholder:text-white/30"
         />
       </div>
 
-      {query && !isSearching && (
+      {isOpen && query && !isSearching && (
         <div className="absolute z-50 w-full mt-2 bg-[#121212] border border-white/10 rounded-xl shadow-2xl max-h-80 overflow-y-auto">
           {error ? (
             <div className="p-4 text-center text-red-400 text-sm">Error: {error}</div>
@@ -56,7 +58,8 @@ export default function AlbumSearchInput({ onSelect }: AlbumSearchInputProps) {
                     type="button"
                     onClick={() => {
                       onSelect(result);
-                      setQuery(''); // Close dropdown
+                      setIsOpen(false);
+                      setQuery(''); // Clear query after selection
                     }}
                     className="w-full flex items-center gap-4 p-3 hover:bg-white/5 transition-colors text-left border-b border-white/5 last:border-0"
                   >
