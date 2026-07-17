@@ -5,15 +5,13 @@ let isSaving = false;
 
 async function fetchGitHubFile() {
   const token = localStorage.getItem('GITHUB_TOKEN');
-  const repo = import.meta.env.VITE_GITHUB_REPO || 'Dylfive/Personal-Website';
-  const path = import.meta.env.VITE_GITHUB_FILE_PATH || 'src/data/Album-Data.json';
-  const branch = import.meta.env.VITE_GITHUB_BRANCH || 'main';
+  // These are non-sensitive config values, hardcoded to avoid build-time env var issues
+  const repo = 'Dylfive/Personal-Website';
+  const path = 'src/data/Album-Data.json';
+  const branch = 'main';
 
   if (!token) {
-    throw new Error('Missing GitHub Token in Admin Settings.');
-  }
-  if (!repo || !path) {
-    throw new Error('Missing GitHub configuration in environment variables.');
+    throw new Error('Missing GitHub Token. Please open Admin Settings and enter your PAT.');
   }
 
   const url = `https://api.github.com/repos/${repo}/contents/${path}?ref=${branch}`;
@@ -25,7 +23,8 @@ async function fetchGitHubFile() {
   });
 
   if (!getRes.ok) {
-    throw new Error(`Failed to fetch current data: ${getRes.statusText}`);
+    const errBody = await getRes.json().catch(() => ({}));
+    throw new Error(`Failed to fetch current data: ${getRes.status} ${getRes.statusText} — ${errBody.message || 'check your GitHub PAT has repo read/write access'}`);
   }
 
   const fileData = await getRes.json();
