@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, Music, ExternalLink, Star, Calendar, Clock, Trophy, Disc3, Search, ArrowUpDown } from 'lucide-react';
+import { ChevronRight, Music, ExternalLink, Star, Calendar, Clock, Trophy, Disc3, Search, ArrowUpDown, BarChart2 } from 'lucide-react';
 import rawAlbumData from '../data/Album-Data.json';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -123,6 +123,94 @@ const GenreBar = ({ genre, avg, count, max, color }: { genre: string; avg: numbe
   </div>
 );
 
+// ─── Ratings Distribution Chart ──────────────────────────────────────────────
+function computeRatingDistribution(albums: Album[]) {
+  // Use 0.5-step buckets from 0 to 10, but group by integer for display
+  const buckets: Record<number, number> = {};
+  // Initialize all integer buckets 0-10
+  for (let i = 0; i <= 10; i++) buckets[i] = 0;
+  albums.forEach((a) => {
+    const rounded = Math.round(a.Rating); // round to nearest integer
+    const clamped = Math.max(0, Math.min(10, rounded));
+    buckets[clamped] = (buckets[clamped] || 0) + 1;
+  });
+  return Object.entries(buckets)
+    .map(([rating, count]) => ({ rating: Number(rating), count }))
+    .sort((a, b) => a.rating - b.rating);
+}
+
+const RatingsChart = ({ albums }: { albums: Album[] }) => {
+  const data = useMemo(() => computeRatingDistribution(albums), [albums]);
+  const maxCount = Math.max(...data.map((d) => d.count), 1);
+
+  // Neon gradient stops keyed by rating bucket
+  const getBarColor = (rating: number) => {
+    if (rating <= 3) return '#ef4444';      // red — low
+    if (rating <= 5) return '#f59e0b';      // amber — mediocre
+    if (rating <= 7) return '#3b82f6';      // blue — decent
+    if (rating <= 8) return '#06b6d4';      // cyan — good
+    if (rating <= 9) return '#d946ef';      // fuchsia — great
+    return '#bc13fe';                        // neon purple — excellent
+  };
+
+  return (
+    <div className="glass-panel rounded-3xl border border-white/10 p-5">
+      <div className="flex items-center gap-2 mb-5">
+        <BarChart2 className="w-4 h-4 text-[#bc13fe]" />
+        <h4 className="text-sm font-bold uppercase tracking-[0.2em] text-white/70">Rating Distribution</h4>
+      </div>
+
+      {/* Chart area */}
+      <div className="flex items-end gap-1 sm:gap-1.5 h-32" aria-label="Ratings distribution bar chart">
+        {data.map(({ rating, count }) => {
+          const heightPct = maxCount > 0 ? (count / maxCount) * 100 : 0;
+          const color = getBarColor(rating);
+          return (
+            <div key={rating} className="flex-1 flex flex-col items-center gap-1 group relative">
+              {/* Tooltip */}
+              {count > 0 && (
+                <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none z-10">
+                  <div
+                    className="text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap"
+                    style={{ background: color, color: '#fff', boxShadow: `0 0 8px ${color}80` }}
+                  >
+                    {count}
+                  </div>
+                </div>
+              )}
+              {/* Bar */}
+              <motion.div
+                className="w-full rounded-t-sm relative overflow-hidden"
+                style={{ height: `${heightPct}%`, background: color, boxShadow: count > 0 ? `0 0 8px ${color}60` : 'none', minHeight: count > 0 ? '3px' : '0' }}
+                initial={{ scaleY: 0, originY: 1 }}
+                animate={{ scaleY: 1 }}
+                transition={{ duration: 0.6, ease: 'easeOut', delay: rating * 0.04 }}
+              >
+                {/* Shimmer */}
+                <div className="absolute inset-0 bg-gradient-to-t from-transparent to-white/20" />
+              </motion.div>
+              {/* X-axis label */}
+              <span
+                className="text-[9px] sm:text-[10px] font-mono font-bold"
+                style={{ color: count > 0 ? color : 'rgba(255,255,255,0.2)' }}
+              >
+                {rating}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Axis labels */}
+      <div className="flex justify-between mt-2">
+        <span className="text-[9px] text-white/30 font-mono">← lower</span>
+        <span className="text-[9px] text-white/30 font-mono">rating (0–10)</span>
+        <span className="text-[9px] text-white/30 font-mono">higher →</span>
+      </div>
+    </div>
+  );
+};
+
 // ─── Interactive Album List ───────────────────────────────────────────────────
 const AlbumList = ({ albums }: { albums: Album[] }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -238,7 +326,7 @@ const AlbumList = ({ albums }: { albums: Album[] }) => {
                     <h4 className="text-base sm:text-lg font-bold text-white truncate">{String(album.Album)}</h4>
                     <p className="text-xs sm:text-sm text-[#bc13fe] truncate">{album.Artist}</p>
                     
-                    <div className="flex items-center gap-3 mt-1.5 hidden sm:flex">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5">
                       <div className="flex items-center gap-1">
                         <Star className="w-3 h-3 text-[#bc13fe] fill-[#bc13fe]" />
                         <span className="text-xs font-bold text-white">{album.Rating.toFixed(1)}</span>
@@ -248,8 +336,8 @@ const AlbumList = ({ albums }: { albums: Album[] }) => {
                         <Calendar className="w-3 h-3" />
                         <span>{album['Release Year']}</span>
                       </div>
-                      <span className="w-1 h-1 rounded-full bg-white/20" />
-                      <span className="text-[10px] uppercase tracking-wider text-white/40 truncate max-w-[120px]">
+                      <span className="w-1 h-1 rounded-full bg-white/20 hidden xs:inline-block" />
+                      <span className="text-[10px] uppercase tracking-wider text-white/40 truncate max-w-[100px] hidden xs:inline">
                         {album.Genre.split(',')[0]}
                       </span>
                     </div>
@@ -440,6 +528,11 @@ const MusicDashboard = () => {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Ratings Distribution — full width below */}
+      <div className="mt-5">
+        <RatingsChart albums={albums} />
       </div>
     </div>
   );
