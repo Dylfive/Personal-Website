@@ -2011,5 +2011,17 @@
     "AppleMusicLink": "",
     "TrackCount": 12,
     "ExactReleaseDate": ""
+  },
+  {
+    "Album": "Alice Cooper's Greatest Hits",
+    "Artist": "Alice Cooper",
+    "Rating": 8.6,
+    "Genre": "Hard Rock, Glam Rock, Shock Rock",
+    "Release Year": 1974,
+    "Length": "00:41:47",
+    "CoverArt": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/1a/60/9a/1a609a56-76da-8aa9-98c0-47050fbf54d2/603497073160.jpg/600x600bb.jpg",
+    "AppleMusicLink": "https://music.apple.com/us/album/alice-coopers-greatest-hits/79574413?uo=4",
+    "TrackCount": 12,
+    "ExactReleaseDate": "1974-08-01"
   }
 ]
