@@ -206,7 +206,7 @@ const AlbumList = ({ albums }: { albums: Album[] }) => {
 
               return (
                 <motion.div
-                  key={album.Album}
+                  key={`${album.Album}-${album.Artist}-${idx}`}
                   layout
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
