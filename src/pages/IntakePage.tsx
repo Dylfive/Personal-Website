@@ -3,19 +3,18 @@ import PinGate from '../components/intake/PinGate';
 import AlbumIntakeForm from '../components/intake/AlbumIntakeForm';
 
 export default function IntakePage() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
-    // Check session storage on mount
-    const authStatus = sessionStorage.getItem('intake_auth');
-    if (authStatus === '1') {
-      setIsAuthenticated(true);
+    // Show settings automatically if no token is present
+    const hasToken = localStorage.getItem('GITHUB_TOKEN');
+    if (!hasToken) {
+      setShowSettings(true);
     }
   }, []);
 
-  const handleAuthSuccess = () => {
-    sessionStorage.setItem('intake_auth', '1');
-    setIsAuthenticated(true);
+  const handleSettingsSuccess = () => {
+    setShowSettings(false);
   };
 
   return (
@@ -25,10 +24,20 @@ export default function IntakePage() {
       <div className="absolute bottom-1/4 -left-20 w-96 h-96 bg-neon-cyan/10 rounded-full blur-[120px] pointer-events-none" />
       
       <div className="container mx-auto relative z-10 flex flex-col items-center">
-        {!isAuthenticated ? (
-          <PinGate onSuccess={handleAuthSuccess} />
+        {showSettings ? (
+          <PinGate onSuccess={handleSettingsSuccess} />
         ) : (
-          <AlbumIntakeForm />
+          <div className="w-full flex flex-col items-center">
+            <div className="w-full max-w-2xl flex justify-end mb-4">
+              <button
+                onClick={() => setShowSettings(true)}
+                className="text-white/50 hover:text-white transition-colors text-sm underline"
+              >
+                Admin Settings
+              </button>
+            </div>
+            <AlbumIntakeForm />
+          </div>
         )}
       </div>
     </div>
