@@ -2023,5 +2023,17 @@
     "AppleMusicLink": "https://music.apple.com/us/album/alice-coopers-greatest-hits/79574413?uo=4",
     "TrackCount": 12,
     "ExactReleaseDate": "1974-08-01"
+  },
+  {
+    "Album": "U",
+    "Artist": "underscores",
+    "Rating": 8.3,
+    "Genre": "Indie Pop, Electronic Pop",
+    "Release Year": 2026,
+    "Length": "00:34:31",
+    "CoverArt": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTY6E05kE0W_HpS9ZW1BPNA5A2S4rHscizvlwcqHGj-Lg&s=10",
+    "AppleMusicLink": "https://music.apple.com/us/album/factual-underscores-7-evolutions/1556962735?uo=4",
+    "TrackCount": 9,
+    "ExactReleaseDate": "2020-09-09"
   }
 ]
