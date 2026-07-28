@@ -1,7 +1,7 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, Music, ExternalLink, Star, Calendar, Clock, Trophy, Disc3, Search, ArrowUpDown, BarChart2 } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Music, ExternalLink, Star, Calendar, Clock, Trophy, Disc3, Search, ArrowUpDown, BarChart2 } from 'lucide-react';
 import rawAlbumData from '../data/Album-Data.json';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -125,87 +125,280 @@ const GenreBar = ({ genre, avg, count, max, color }: { genre: string; avg: numbe
 
 // ─── Ratings Distribution Chart ──────────────────────────────────────────────
 function computeRatingDistribution(albums: Album[]) {
-  // Use 0.5-step buckets from 0 to 10, but group by integer for display
-  const buckets: Record<number, number> = {};
-  // Initialize all integer buckets 0-10
-  for (let i = 0; i <= 10; i++) buckets[i] = 0;
+  // Generate 0.1-step decimal buckets from 0.0 to 10.0 (101 total buckets)
+  const buckets: Record<string, number> = {};
+  for (let i = 0; i <= 100; i++) {
+    const val = (i / 10).toFixed(1);
+    buckets[val] = 0;
+  }
+
   albums.forEach((a) => {
-    const rounded = Math.round(a.Rating); // round to nearest integer
-    const clamped = Math.max(0, Math.min(10, rounded));
-    buckets[clamped] = (buckets[clamped] || 0) + 1;
+    const rounded = Math.max(0, Math.min(10, Math.round(a.Rating * 10) / 10));
+    const val = rounded.toFixed(1);
+    if (buckets[val] !== undefined) {
+      buckets[val] += 1;
+    }
   });
+
   return Object.entries(buckets)
-    .map(([rating, count]) => ({ rating: Number(rating), count }))
+    .map(([ratingStr, count]) => ({
+      rating: parseFloat(ratingStr),
+      ratingStr,
+      count,
+      isInteger: ratingStr.endsWith('.0'),
+    }))
     .sort((a, b) => a.rating - b.rating);
 }
 
 const RatingsChart = ({ albums }: { albums: Album[] }) => {
   const data = useMemo(() => computeRatingDistribution(albums), [albums]);
   const maxCount = Math.max(...data.map((d) => d.count), 1);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Neon gradient stops keyed by rating bucket
+  // Mouse drag state for smooth panning
+  const isDraggingRef = useRef(false);
+  const startXRef = useRef(0);
+  const scrollLeftRef = useRef(0);
+
+  // Auto scroll to populated area (e.g. rating ~6.5) on mount
+  useEffect(() => {
+    if (scrollRef.current) {
+      const targetIndex = data.findIndex((d) => d.rating >= 6.5);
+      if (targetIndex !== -1) {
+        const itemWidth = 32;
+        scrollRef.current.scrollLeft = targetIndex * itemWidth;
+      }
+    }
+  }, [data]);
+
+  const handleWheel = (e: React.WheelEvent) => {
+    if (scrollRef.current && Math.abs(e.deltaY) > 0) {
+      scrollRef.current.scrollLeft += e.deltaY;
+    }
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!scrollRef.current) return;
+    isDraggingRef.current = true;
+    startXRef.current = e.pageX - scrollRef.current.offsetLeft;
+    scrollLeftRef.current = scrollRef.current.scrollLeft;
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDraggingRef.current || !scrollRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - scrollRef.current.offsetLeft;
+    const walk = (x - startXRef.current) * 1.5;
+    scrollRef.current.scrollLeft = scrollLeftRef.current - walk;
+  };
+
+  const handleMouseUpOrLeave = () => {
+    isDraggingRef.current = false;
+  };
+
+  const scrollToRating = (targetRating: number) => {
+    if (!scrollRef.current) return;
+    const index = data.findIndex((d) => d.rating >= targetRating);
+    if (index !== -1) {
+      const barWidth = 32;
+      scrollRef.current.scrollTo({
+        left: index * barWidth,
+        behavior: 'smooth',
+      });
+    }
+  };
+
+  const scrollByAmount = (offset: number) => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollBy({ left: offset, behavior: 'smooth' });
+    }
+  };
+
   const getBarColor = (rating: number) => {
-    if (rating <= 3) return '#ef4444';      // red — low
-    if (rating <= 5) return '#f59e0b';      // amber — mediocre
-    if (rating <= 7) return '#3b82f6';      // blue — decent
-    if (rating <= 8) return '#06b6d4';      // cyan — good
-    if (rating <= 9) return '#d946ef';      // fuchsia — great
-    return '#bc13fe';                        // neon purple — excellent
+    if (rating < 4.0) return '#ef4444'; // red — low
+    if (rating < 6.0) return '#f59e0b'; // amber — mediocre
+    if (rating < 7.5) return '#3b82f6'; // blue — decent
+    if (rating < 8.5) return '#06b6d4'; // cyan — good
+    if (rating < 9.5) return '#d946ef'; // fuchsia — great
+    return '#bc13fe';                   // neon purple — excellent
   };
 
   return (
     <div className="glass-panel rounded-3xl border border-white/10 p-5">
-      <div className="flex items-center gap-2 mb-5">
-        <BarChart2 className="w-4 h-4 text-[#bc13fe]" />
-        <h4 className="text-sm font-bold uppercase tracking-[0.2em] text-white/70">Rating Distribution</h4>
+      {/* Header controls */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+        <div className="flex items-center gap-2">
+          <BarChart2 className="w-4 h-4 text-[#bc13fe]" />
+          <div>
+            <h4 className="text-sm font-bold uppercase tracking-[0.2em] text-white/90">
+              Decimal Rating Distribution
+            </h4>
+            <p className="text-[11px] text-white/40 font-mono">
+              101 decimal increments (0.0 to 10.0) · Scroll or drag horizontally
+            </p>
+          </div>
+        </div>
+
+        {/* Navigation & Jump shortcuts */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1 bg-white/5 p-1 rounded-full border border-white/10 text-xs">
+            <span className="text-[10px] uppercase font-bold text-white/40 px-2">Jump:</span>
+            {[
+              { label: '0.0', rating: 0 },
+              { label: '5.0', rating: 5.0 },
+              { label: '7.0', rating: 7.0 },
+              { label: '8.0', rating: 8.0 },
+              { label: '9.0', rating: 9.0 },
+              { label: '10.0', rating: 10.0 },
+            ].map(({ label, rating }) => (
+              <button
+                key={label}
+                onClick={() => scrollToRating(rating)}
+                className="px-2 py-0.5 rounded-full hover:bg-[#bc13fe]/30 hover:text-white text-white/60 font-mono text-[10px] transition-colors"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => scrollByAmount(-300)}
+              className="p-1.5 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 text-white/70 hover:text-white transition-colors"
+              aria-label="Scroll left"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => scrollByAmount(300)}
+              className="p-1.5 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 text-white/70 hover:text-white transition-colors"
+              aria-label="Scroll right"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Chart area */}
-      <div className="flex items-end gap-1 sm:gap-1.5 h-32" aria-label="Ratings distribution bar chart">
-        {data.map(({ rating, count }) => {
-          const heightPct = maxCount > 0 ? (count / maxCount) * 100 : 0;
-          const color = getBarColor(rating);
-          return (
-            <div key={rating} className="flex-1 flex flex-col items-center gap-1 group relative">
-              {/* Tooltip */}
-              {count > 0 && (
-                <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none z-10">
-                  <div
-                    className="text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap"
-                    style={{ background: color, color: '#fff', boxShadow: `0 0 8px ${color}80` }}
-                  >
-                    {count}
+      {/* Scrollable Chart Container */}
+      <div className="relative group">
+        <div
+          ref={scrollRef}
+          onWheel={handleWheel}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUpOrLeave}
+          onMouseLeave={handleMouseUpOrLeave}
+          className="overflow-x-auto cursor-grab active:cursor-grabbing select-none pb-4 pt-10"
+          style={{ scrollbarWidth: 'thin' }}
+        >
+          <div
+            className="flex items-end gap-1.5 min-w-max h-44 px-2"
+            aria-label="Decimal ratings distribution bar chart"
+          >
+            {data.map(({ rating, ratingStr, count, isInteger }) => {
+              const heightPct = maxCount > 0 ? (count / maxCount) * 100 : 0;
+              const color = getBarColor(rating);
+              return (
+                <div
+                  key={ratingStr}
+                  className="w-7 sm:w-8 flex-shrink-0 flex flex-col items-center gap-1 group/bar relative"
+                >
+                  {/* Floating Count Badge above Bar */}
+                  {count > 0 && (
+                    <div className="absolute -top-7 left-1/2 -translate-x-1/2 z-10">
+                      <span
+                        className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full shadow-sm whitespace-nowrap"
+                        style={{
+                          background: color,
+                          color: '#fff',
+                          boxShadow: `0 0 6px ${color}80`,
+                        }}
+                      >
+                        {count}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Hover Tooltip */}
+                  <div className="absolute -top-12 left-1/2 -translate-x-1/2 opacity-0 group-hover/bar:opacity-100 transition-opacity duration-150 pointer-events-none z-20">
+                    <div
+                      className="text-[10px] font-bold px-2.5 py-1 rounded-lg whitespace-nowrap backdrop-blur-md shadow-lg border border-white/20"
+                      style={{
+                        background: 'rgba(10, 10, 10, 0.95)',
+                        color: color,
+                      }}
+                    >
+                      <span className="text-white font-mono font-bold">{ratingStr}★</span>: {count} {count === 1 ? 'album' : 'albums'}
+                    </div>
+                  </div>
+
+                  {/* Bar */}
+                  <div className="w-full flex-1 flex items-end">
+                    <motion.div
+                      className="w-full rounded-t-sm relative overflow-hidden transition-all duration-200 group-hover/bar:brightness-125"
+                      style={{
+                        height: `${heightPct}%`,
+                        background: count > 0 ? color : 'rgba(255, 255, 255, 0.05)',
+                        boxShadow: count > 0 ? `0 0 8px ${color}60` : 'none',
+                        minHeight: count > 0 ? '4px' : '1px',
+                      }}
+                      initial={{ scaleY: 0, originY: 1 }}
+                      animate={{ scaleY: 1 }}
+                      transition={{
+                        duration: 0.5,
+                        ease: 'easeOut',
+                        delay: Math.min(rating * 0.02, 0.5),
+                      }}
+                    >
+                      {/* Shimmer */}
+                      {count > 0 && (
+                        <div className="absolute inset-0 bg-gradient-to-t from-transparent to-white/25" />
+                      )}
+                    </motion.div>
+                  </div>
+
+                  {/* X-axis Label */}
+                  <div className="flex flex-col items-center">
+                    <div
+                      className={`w-0.5 mb-1 ${
+                        isInteger
+                          ? 'h-2 bg-white/40'
+                          : count > 0
+                          ? 'h-1 bg-white/20'
+                          : 'h-0.5 bg-white/10'
+                      }`}
+                    />
+                    <span
+                      className={`font-mono text-[9px] sm:text-[10px] transition-colors ${
+                        isInteger
+                          ? 'font-black text-white'
+                          : count > 0
+                          ? 'font-semibold text-white/70'
+                          : 'text-white/20'
+                      }`}
+                      style={{
+                        color: count > 0 ? color : isInteger ? '#ffffff' : undefined,
+                      }}
+                    >
+                      {ratingStr}
+                    </span>
                   </div>
                 </div>
-              )}
-              {/* Bar */}
-              <motion.div
-                className="w-full rounded-t-sm relative overflow-hidden"
-                style={{ height: `${heightPct}%`, background: color, boxShadow: count > 0 ? `0 0 8px ${color}60` : 'none', minHeight: count > 0 ? '3px' : '0' }}
-                initial={{ scaleY: 0, originY: 1 }}
-                animate={{ scaleY: 1 }}
-                transition={{ duration: 0.6, ease: 'easeOut', delay: rating * 0.04 }}
-              >
-                {/* Shimmer */}
-                <div className="absolute inset-0 bg-gradient-to-t from-transparent to-white/20" />
-              </motion.div>
-              {/* X-axis label */}
-              <span
-                className="text-[9px] sm:text-[10px] font-mono font-bold"
-                style={{ color: count > 0 ? color : 'rgba(255,255,255,0.2)' }}
-              >
-                {rating}
-              </span>
-            </div>
-          );
-        })}
+              );
+            })}
+          </div>
+        </div>
       </div>
 
-      {/* Axis labels */}
-      <div className="flex justify-between mt-2">
-        <span className="text-[9px] text-white/30 font-mono">← lower</span>
-        <span className="text-[9px] text-white/30 font-mono">rating (0–10)</span>
-        <span className="text-[9px] text-white/30 font-mono">higher →</span>
+      {/* Axis Footer */}
+      <div className="flex justify-between items-center mt-3 pt-2 border-t border-white/5">
+        <span className="text-[10px] text-white/40 font-mono">← 0.0 (Lowest)</span>
+        <span className="text-[10px] text-white/50 font-mono flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-[#bc13fe] inline-block animate-pulse" />
+          Scroll or drag to explore full 101-decimal spectrum
+        </span>
+        <span className="text-[10px] text-white/40 font-mono">10.0 (Perfect) →</span>
       </div>
     </div>
   );
