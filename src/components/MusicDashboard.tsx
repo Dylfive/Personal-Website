@@ -293,7 +293,7 @@ const RatingsChart = ({ albums }: { albums: Album[] }) => {
           style={{ scrollbarWidth: 'thin' }}
         >
           <div
-            className="flex items-end gap-1.5 min-w-max h-64 px-2"
+            className="flex items-end gap-1.5 min-w-max h-56 px-2"
             aria-label="Ratings distribution bar chart"
           >
             {data.map(({ rating, ratingStr, count, isInteger }) => {
@@ -304,22 +304,6 @@ const RatingsChart = ({ albums }: { albums: Album[] }) => {
                   key={ratingStr}
                   className="w-7 sm:w-8 flex-shrink-0 flex flex-col items-center justify-end h-full group/bar relative"
                 >
-                  {/* Floating Count Badge above Bar */}
-                  {count > 0 && (
-                    <div className="mb-1 z-10">
-                      <span
-                        className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full shadow-sm whitespace-nowrap"
-                        style={{
-                          background: color,
-                          color: '#fff',
-                          boxShadow: `0 0 6px ${color}80`,
-                        }}
-                      >
-                        {count}
-                      </span>
-                    </div>
-                  )}
-
                   {/* Hover Tooltip */}
                   <div className="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover/bar:opacity-100 transition-opacity duration-150 pointer-events-none z-20">
                     <div
@@ -339,9 +323,8 @@ const RatingsChart = ({ albums }: { albums: Album[] }) => {
                       className="w-full rounded-t-md relative overflow-hidden transition-all duration-200 group-hover/bar:brightness-125"
                       style={{
                         height: `${heightPct}%`,
-                        background: count > 0 ? color : 'rgba(255, 255, 255, 0.05)',
+                        background: count > 0 ? color : 'transparent',
                         boxShadow: count > 0 ? `0 0 10px ${color}80` : 'none',
-                        minHeight: count > 0 ? '6px' : '2px',
                       }}
                       initial={{ scaleY: 0, originY: 1 }}
                       animate={{ scaleY: 1 }}
@@ -358,18 +341,19 @@ const RatingsChart = ({ albums }: { albums: Album[] }) => {
                     </motion.div>
                   </div>
 
-                  {/* X-axis Label (Clean, no tick line) */}
-                  <div className="mt-2 text-center w-full">
+                  {/* X-axis Label (Clean, uniform height, zero bump, bold .0) */}
+                  <div className="h-6 flex items-center justify-center w-full mt-2">
                     <span
-                      className={`font-mono transition-colors block ${
+                      className={`font-mono block text-[10px] transition-colors ${
                         isInteger
-                          ? 'text-[11px] font-black text-white'
+                          ? 'text-white'
                           : count > 0
-                          ? 'text-[9.5px] font-bold text-white/80'
-                          : 'text-[9px] text-white/30'
+                          ? 'text-white/70'
+                          : 'text-white/30'
                       }`}
                       style={{
-                        color: count > 0 ? color : isInteger ? '#ffffff' : undefined,
+                        fontWeight: isInteger ? 900 : count > 0 ? 600 : 400,
+                        color: isInteger ? '#ffffff' : count > 0 ? color : 'rgba(255, 255, 255, 0.3)',
                       }}
                     >
                       {ratingStr}
