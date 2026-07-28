@@ -396,7 +396,8 @@ const AlbumList = ({ albums, searchQuery, setSearchQuery }: { albums: Album[], s
       const matchTitle = String(a.Album).toLowerCase().includes(query);
       const matchArtist = a.Artist.toLowerCase().includes(query);
       const matchGenre = a.Genre.toLowerCase().includes(query);
-      return matchTitle || matchArtist || matchGenre;
+      const matchRating = a.Rating.toFixed(1).includes(query) || String(a.Rating).includes(query);
+      return matchTitle || matchArtist || matchGenre || matchRating;
     });
 
     // Sort
