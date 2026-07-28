@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronRight, ChevronLeft, Music, ExternalLink, Star, Calendar, Clock, Trophy, Disc3, Search, ArrowUpDown, BarChart2 } from 'lucide-react';
@@ -151,233 +151,231 @@ function computeRatingDistribution(albums: Album[]) {
 }
 
 const RatingsChart = ({ albums }: { albums: Album[] }) => {
+  // ── data & refs ──────────────────────────────────────────────────────────
   const data = useMemo(() => computeRatingDistribution(albums), [albums]);
   const maxCount = Math.max(...data.map((d) => d.count), 1);
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  // Mouse drag state for smooth panning
   const isDraggingRef = useRef(false);
   const startXRef = useRef(0);
   const scrollLeftRef = useRef(0);
 
-  // Auto scroll to populated area (e.g. rating ~6.5) on mount
+  // Auto-scroll to ~6.5 on mount so populated area is visible first
   useEffect(() => {
-    if (scrollRef.current) {
-      const targetIndex = data.findIndex((d) => d.rating >= 6.5);
-      if (targetIndex !== -1) {
-        const itemWidth = 32;
-        scrollRef.current.scrollLeft = targetIndex * itemWidth;
-      }
-    }
+    if (!scrollRef.current) return;
+    const BAR_W = 30; // w-7 (28px) + gap-1 (2px approx)
+    const idx = data.findIndex((d) => d.rating >= 6.5);
+    if (idx !== -1) scrollRef.current.scrollLeft = idx * BAR_W;
   }, [data]);
 
-  const handleWheel = (e: React.WheelEvent) => {
-    if (scrollRef.current && Math.abs(e.deltaY) > 0) {
-      scrollRef.current.scrollLeft += e.deltaY;
-    }
-  };
-
-  const handleMouseDown = (e: React.MouseEvent) => {
+  // ── drag-to-pan ──────────────────────────────────────────────────────────
+  const onMouseDown = (e: React.MouseEvent) => {
     if (!scrollRef.current) return;
     isDraggingRef.current = true;
     startXRef.current = e.pageX - scrollRef.current.offsetLeft;
     scrollLeftRef.current = scrollRef.current.scrollLeft;
   };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
+  const onMouseMove = (e: React.MouseEvent) => {
     if (!isDraggingRef.current || !scrollRef.current) return;
     e.preventDefault();
-    const x = e.pageX - scrollRef.current.offsetLeft;
-    const walk = (x - startXRef.current) * 1.5;
-    scrollRef.current.scrollLeft = scrollLeftRef.current - walk;
+    scrollRef.current.scrollLeft =
+      scrollLeftRef.current - (e.pageX - scrollRef.current.offsetLeft - startXRef.current) * 1.5;
+  };
+  const onDragEnd = () => { isDraggingRef.current = false; };
+
+  // redirect vertical wheel → horizontal scroll
+  const onWheel = (e: React.WheelEvent) => {
+    if (scrollRef.current) scrollRef.current.scrollLeft += e.deltaY;
   };
 
-  const handleMouseUpOrLeave = () => {
-    isDraggingRef.current = false;
-  };
-
-  const scrollToRating = (targetRating: number) => {
+  // ── nav helpers ──────────────────────────────────────────────────────────
+  const scrollToRating = (target: number) => {
     if (!scrollRef.current) return;
-    const index = data.findIndex((d) => d.rating >= targetRating);
-    if (index !== -1) {
-      const barWidth = 32;
-      scrollRef.current.scrollTo({
-        left: index * barWidth,
-        behavior: 'smooth',
-      });
-    }
+    const BAR_W = 30;
+    const idx = data.findIndex((d) => d.rating >= target);
+    if (idx !== -1) scrollRef.current.scrollTo({ left: idx * BAR_W, behavior: 'smooth' });
+  };
+  const nudge = (px: number) => scrollRef.current?.scrollBy({ left: px, behavior: 'smooth' });
+
+  // ── colour scale ─────────────────────────────────────────────────────────
+  const barColor = (r: number) => {
+    if (r < 4.0) return '#ef4444';
+    if (r < 6.0) return '#f59e0b';
+    if (r < 7.5) return '#3b82f6';
+    if (r < 8.5) return '#06b6d4';
+    if (r < 9.5) return '#d946ef';
+    return '#bc13fe';
   };
 
-  const scrollByAmount = (offset: number) => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollBy({ left: offset, behavior: 'smooth' });
-    }
-  };
+  const JUMP = [
+    { label: '0',  r: 0   },
+    { label: '5',  r: 5.0 },
+    { label: '7',  r: 7.0 },
+    { label: '8',  r: 8.0 },
+    { label: '9',  r: 9.0 },
+    { label: '10', r: 10.0 },
+  ];
 
-  const getBarColor = (rating: number) => {
-    if (rating < 4.0) return '#ef4444'; // red — low
-    if (rating < 6.0) return '#f59e0b'; // amber — mediocre
-    if (rating < 7.5) return '#3b82f6'; // blue — decent
-    if (rating < 8.5) return '#06b6d4'; // cyan — good
-    if (rating < 9.5) return '#d946ef'; // fuchsia — great
-    return '#bc13fe';                   // neon purple — excellent
-  };
+  // Fixed pixel height for bar area — heights are computed in px, not %, for reliable scaling
+  const BAR_AREA_H = 140;
 
   return (
     <div className="glass-panel rounded-3xl border border-white/10 p-5">
-      {/* Header controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-        <div className="flex items-center gap-2">
-          <BarChart2 className="w-4 h-4 text-[#bc13fe]" />
+
+      {/* ── Header ─────────────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
+        <div className="flex items-center gap-2.5">
+          <BarChart2 className="w-4 h-4 text-[#bc13fe] shrink-0" />
           <div>
-            <h4 className="text-sm font-bold uppercase tracking-[0.2em] text-white/90">
+            <h4 className="text-sm font-bold uppercase tracking-[0.2em] text-white/90 leading-none">
               Rating Distribution
             </h4>
-            <p className="text-[11px] text-white/40 font-mono">
-              Scroll or drag horizontally to explore ratings
-            </p>
+            <p className="text-[11px] text-white/35 mt-0.5">Scroll or drag to explore</p>
           </div>
         </div>
 
-        {/* Navigation & Jump shortcuts */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1 bg-white/5 p-1 rounded-full border border-white/10 text-xs">
-            <span className="text-[10px] uppercase font-bold text-white/40 px-2">Jump:</span>
-            {[
-              { label: '0.0', rating: 0 },
-              { label: '5.0', rating: 5.0 },
-              { label: '7.0', rating: 7.0 },
-              { label: '8.0', rating: 8.0 },
-              { label: '9.0', rating: 9.0 },
-              { label: '10.0', rating: 10.0 },
-            ].map(({ label, rating }) => (
-              <button
-                key={label}
-                onClick={() => scrollToRating(rating)}
-                className="px-2 py-0.5 rounded-full hover:bg-[#bc13fe]/30 hover:text-white text-white/60 font-mono text-[10px] transition-colors"
-              >
-                {label}
-              </button>
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Segmented jump strip */}
+          <div
+            className="flex items-center rounded-xl border border-white/10 overflow-hidden"
+            style={{ background: 'rgba(255,255,255,0.04)' }}
+          >
+            <span className="text-[9px] uppercase font-black tracking-widest text-white/25 pl-3 pr-2 select-none">
+              Jump
+            </span>
+            {JUMP.map(({ label, r }) => (
+              <React.Fragment key={label}>
+                <div className="w-px h-4 bg-white/10" />
+                <button
+                  onClick={() => scrollToRating(r)}
+                  className="px-3 py-1.5 text-[11px] font-mono font-semibold text-white/45 hover:text-white hover:bg-white/5 transition-all duration-150"
+                >
+                  {label}
+                </button>
+              </React.Fragment>
             ))}
           </div>
 
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => scrollByAmount(-300)}
-              className="p-1.5 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 text-white/70 hover:text-white transition-colors"
-              aria-label="Scroll left"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => scrollByAmount(300)}
-              className="p-1.5 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 text-white/70 hover:text-white transition-colors"
-              aria-label="Scroll right"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Scrollable Chart Container */}
-      <div className="relative group">
-        <div
-          ref={scrollRef}
-          onWheel={handleWheel}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUpOrLeave}
-          onMouseLeave={handleMouseUpOrLeave}
-          className="overflow-x-auto cursor-grab active:cursor-grabbing select-none pb-4 pt-10"
-          style={{ scrollbarWidth: 'thin' }}
-        >
-          <div
-            className="flex items-end gap-1.5 min-w-max h-56 px-2"
-            aria-label="Ratings distribution bar chart"
+          {/* Arrow buttons */}
+          <button
+            onClick={() => nudge(-300)}
+            aria-label="Scroll left"
+            className="w-8 h-8 flex items-center justify-center rounded-lg border border-white/10 text-white/40 hover:text-white hover:border-[#bc13fe]/50 hover:bg-[#bc13fe]/10 transition-all duration-200"
           >
-            {data.map(({ rating, ratingStr, count, isInteger }) => {
-              const heightPct = maxCount > 0 ? (count / maxCount) * 100 : 0;
-              const color = getBarColor(rating);
-              return (
-                <div
-                  key={ratingStr}
-                  className="w-7 sm:w-8 flex-shrink-0 flex flex-col items-center justify-end h-full group/bar relative"
-                >
-                  {/* Hover Tooltip */}
-                  <div className="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover/bar:opacity-100 transition-opacity duration-150 pointer-events-none z-20">
-                    <div
-                      className="text-[10px] font-bold px-2.5 py-1 rounded-lg whitespace-nowrap backdrop-blur-md shadow-lg border border-white/20"
-                      style={{
-                        background: 'rgba(10, 10, 10, 0.95)',
-                        color: color,
-                      }}
-                    >
-                      <span className="text-white font-mono font-bold">{ratingStr}★</span>: {count} {count === 1 ? 'album' : 'albums'}
-                    </div>
-                  </div>
-
-                  {/* Bar Container with fixed height for accurate scaling */}
-                  <div className="w-full h-44 flex items-end relative">
-                    <motion.div
-                      className="w-full rounded-t-md relative overflow-hidden transition-all duration-200 group-hover/bar:brightness-125"
-                      style={{
-                        height: `${heightPct}%`,
-                        background: count > 0 ? color : 'transparent',
-                        boxShadow: count > 0 ? `0 0 10px ${color}80` : 'none',
-                      }}
-                      initial={{ scaleY: 0, originY: 1 }}
-                      animate={{ scaleY: 1 }}
-                      transition={{
-                        duration: 0.5,
-                        ease: 'easeOut',
-                        delay: Math.min(rating * 0.02, 0.4),
-                      }}
-                    >
-                      {/* Shimmer */}
-                      {count > 0 && (
-                        <div className="absolute inset-0 bg-gradient-to-t from-transparent to-white/25" />
-                      )}
-                    </motion.div>
-                  </div>
-
-                  {/* X-axis Label (Clean, uniform height, zero bump, bold .0) */}
-                  <div className="h-6 flex items-center justify-center w-full mt-2">
-                    <span
-                      className={`font-mono block text-[10px] transition-colors ${
-                        isInteger
-                          ? 'text-white'
-                          : count > 0
-                          ? 'text-white/70'
-                          : 'text-white/30'
-                      }`}
-                      style={{
-                        fontWeight: isInteger ? 900 : count > 0 ? 600 : 400,
-                        color: isInteger ? '#ffffff' : count > 0 ? color : 'rgba(255, 255, 255, 0.3)',
-                      }}
-                    >
-                      {ratingStr}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => nudge(300)}
+            aria-label="Scroll right"
+            className="w-8 h-8 flex items-center justify-center rounded-lg border border-white/10 text-white/40 hover:text-white hover:border-[#bc13fe]/50 hover:bg-[#bc13fe]/10 transition-all duration-200"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
-      {/* Axis Footer */}
-      <div className="flex justify-between items-center mt-3 pt-2 border-t border-white/5">
-        <span className="text-[10px] text-white/40 font-mono">← 0.0 (Lowest)</span>
-        <span className="text-[10px] text-white/50 font-mono flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-[#bc13fe] inline-block animate-pulse" />
-          Scroll or drag to explore full spectrum
+      {/* ── Scrollable chart ────────────────────────────────────────── */}
+      <div
+        ref={scrollRef}
+        onWheel={onWheel}
+        onMouseDown={onMouseDown}
+        onMouseMove={onMouseMove}
+        onMouseUp={onDragEnd}
+        onMouseLeave={onDragEnd}
+        className="overflow-x-auto cursor-grab active:cursor-grabbing select-none"
+        style={{ scrollbarWidth: 'thin' }}
+      >
+        {/* Inner row: count pill + bar + label stacked per bucket */}
+        <div
+          className="flex items-end gap-1 min-w-max px-1 pb-1"
+          style={{ height: `${BAR_AREA_H + 36 + 28}px` }} // pill row + bar area + label row
+          aria-label="Ratings distribution bar chart"
+        >
+          {data.map(({ rating, ratingStr, count, isInteger }) => {
+            const color = barColor(rating);
+            const barPx = maxCount > 0 ? Math.round((count / maxCount) * BAR_AREA_H) : 0;
+
+            return (
+              <div
+                key={ratingStr}
+                className="w-7 shrink-0 flex flex-col items-center"
+                style={{ height: `${BAR_AREA_H + 36 + 28}px` }}
+              >
+                {/* Always-visible count pill (36 px zone) */}
+                <div className="h-9 flex items-center justify-center">
+                  {count > 0 ? (
+                    <span
+                      className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full leading-none"
+                      style={{
+                        background: color,
+                        color: '#fff',
+                        boxShadow: `0 0 8px ${color}80`,
+                      }}
+                    >
+                      {count}
+                    </span>
+                  ) : (
+                    <span className="w-1 h-1 rounded-full bg-white/10" />
+                  )}
+                </div>
+
+                {/* Bar (BAR_AREA_H px zone, aligns from bottom) */}
+                <div className="w-full flex items-end" style={{ height: `${BAR_AREA_H}px` }}>
+                  <motion.div
+                    className="w-full rounded-t-sm relative overflow-hidden"
+                    style={{
+                      height: barPx > 0 ? `${barPx}px` : '2px',
+                      background: count > 0 ? color : 'rgba(255,255,255,0.04)',
+                      boxShadow: count > 0 ? `0 0 10px ${color}70` : 'none',
+                    }}
+                    initial={{ scaleY: 0, originY: 1 }}
+                    animate={{ scaleY: 1 }}
+                    transition={{
+                      duration: 0.45,
+                      ease: 'easeOut',
+                      delay: Math.min(rating * 0.016, 0.3),
+                    }}
+                  >
+                    {count > 0 && (
+                      <div className="absolute inset-0 bg-gradient-to-t from-transparent to-white/20" />
+                    )}
+                  </motion.div>
+                </div>
+
+                {/* X-axis label (28 px zone) */}
+                <div className="h-7 flex items-center justify-center w-full">
+                  <span
+                    className="font-mono text-[10px] leading-none"
+                    style={{
+                      fontWeight: isInteger ? 800 : count > 0 ? 500 : 400,
+                      color: isInteger
+                        ? '#ffffff'
+                        : count > 0
+                        ? color
+                        : 'rgba(255,255,255,0.2)',
+                    }}
+                  >
+                    {ratingStr}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Footer ──────────────────────────────────────────────────── */}
+      <div className="flex justify-between items-center mt-3 pt-3 border-t border-white/5">
+        <span className="text-[10px] text-white/30 font-mono">← 0.0</span>
+        <span className="text-[10px] text-white/30 font-mono flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#bc13fe] inline-block animate-pulse" />
+          Scroll or drag to explore
         </span>
-        <span className="text-[10px] text-white/40 font-mono">10.0 (Perfect) →</span>
+        <span className="text-[10px] text-white/30 font-mono">10.0 →</span>
       </div>
     </div>
   );
 };
+
 
 // ─── Interactive Album List ───────────────────────────────────────────────────
 const AlbumList = ({ albums }: { albums: Album[] }) => {
