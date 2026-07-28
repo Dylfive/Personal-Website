@@ -231,10 +231,10 @@ const RatingsChart = ({ albums }: { albums: Album[] }) => {
           <BarChart2 className="w-4 h-4 text-[#bc13fe]" />
           <div>
             <h4 className="text-sm font-bold uppercase tracking-[0.2em] text-white/90">
-              Decimal Rating Distribution
+              Rating Distribution
             </h4>
             <p className="text-[11px] text-white/40 font-mono">
-              101 decimal increments (0.0 to 10.0) · Scroll or drag horizontally
+              Scroll or drag horizontally to explore ratings
             </p>
           </div>
         </div>
@@ -293,8 +293,8 @@ const RatingsChart = ({ albums }: { albums: Album[] }) => {
           style={{ scrollbarWidth: 'thin' }}
         >
           <div
-            className="flex items-end gap-1.5 min-w-max h-44 px-2"
-            aria-label="Decimal ratings distribution bar chart"
+            className="flex items-end gap-1.5 min-w-max h-64 px-2"
+            aria-label="Ratings distribution bar chart"
           >
             {data.map(({ rating, ratingStr, count, isInteger }) => {
               const heightPct = maxCount > 0 ? (count / maxCount) * 100 : 0;
@@ -302,11 +302,11 @@ const RatingsChart = ({ albums }: { albums: Album[] }) => {
               return (
                 <div
                   key={ratingStr}
-                  className="w-7 sm:w-8 flex-shrink-0 flex flex-col items-center gap-1 group/bar relative"
+                  className="w-7 sm:w-8 flex-shrink-0 flex flex-col items-center justify-end h-full group/bar relative"
                 >
                   {/* Floating Count Badge above Bar */}
                   {count > 0 && (
-                    <div className="absolute -top-7 left-1/2 -translate-x-1/2 z-10">
+                    <div className="mb-1 z-10">
                       <span
                         className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full shadow-sm whitespace-nowrap"
                         style={{
@@ -321,7 +321,7 @@ const RatingsChart = ({ albums }: { albums: Album[] }) => {
                   )}
 
                   {/* Hover Tooltip */}
-                  <div className="absolute -top-12 left-1/2 -translate-x-1/2 opacity-0 group-hover/bar:opacity-100 transition-opacity duration-150 pointer-events-none z-20">
+                  <div className="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover/bar:opacity-100 transition-opacity duration-150 pointer-events-none z-20">
                     <div
                       className="text-[10px] font-bold px-2.5 py-1 rounded-lg whitespace-nowrap backdrop-blur-md shadow-lg border border-white/20"
                       style={{
@@ -333,22 +333,22 @@ const RatingsChart = ({ albums }: { albums: Album[] }) => {
                     </div>
                   </div>
 
-                  {/* Bar */}
-                  <div className="w-full flex-1 flex items-end">
+                  {/* Bar Container with fixed height for accurate scaling */}
+                  <div className="w-full h-44 flex items-end relative">
                     <motion.div
-                      className="w-full rounded-t-sm relative overflow-hidden transition-all duration-200 group-hover/bar:brightness-125"
+                      className="w-full rounded-t-md relative overflow-hidden transition-all duration-200 group-hover/bar:brightness-125"
                       style={{
                         height: `${heightPct}%`,
                         background: count > 0 ? color : 'rgba(255, 255, 255, 0.05)',
-                        boxShadow: count > 0 ? `0 0 8px ${color}60` : 'none',
-                        minHeight: count > 0 ? '4px' : '1px',
+                        boxShadow: count > 0 ? `0 0 10px ${color}80` : 'none',
+                        minHeight: count > 0 ? '6px' : '2px',
                       }}
                       initial={{ scaleY: 0, originY: 1 }}
                       animate={{ scaleY: 1 }}
                       transition={{
                         duration: 0.5,
                         ease: 'easeOut',
-                        delay: Math.min(rating * 0.02, 0.5),
+                        delay: Math.min(rating * 0.02, 0.4),
                       }}
                     >
                       {/* Shimmer */}
@@ -358,24 +358,15 @@ const RatingsChart = ({ albums }: { albums: Album[] }) => {
                     </motion.div>
                   </div>
 
-                  {/* X-axis Label */}
-                  <div className="flex flex-col items-center">
-                    <div
-                      className={`w-0.5 mb-1 ${
-                        isInteger
-                          ? 'h-2 bg-white/40'
-                          : count > 0
-                          ? 'h-1 bg-white/20'
-                          : 'h-0.5 bg-white/10'
-                      }`}
-                    />
+                  {/* X-axis Label (Clean, no tick line) */}
+                  <div className="mt-2 text-center w-full">
                     <span
-                      className={`font-mono text-[9px] sm:text-[10px] transition-colors ${
+                      className={`font-mono transition-colors block ${
                         isInteger
-                          ? 'font-black text-white'
+                          ? 'text-[11px] font-black text-white'
                           : count > 0
-                          ? 'font-semibold text-white/70'
-                          : 'text-white/20'
+                          ? 'text-[9.5px] font-bold text-white/80'
+                          : 'text-[9px] text-white/30'
                       }`}
                       style={{
                         color: count > 0 ? color : isInteger ? '#ffffff' : undefined,
@@ -396,7 +387,7 @@ const RatingsChart = ({ albums }: { albums: Album[] }) => {
         <span className="text-[10px] text-white/40 font-mono">← 0.0 (Lowest)</span>
         <span className="text-[10px] text-white/50 font-mono flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-[#bc13fe] inline-block animate-pulse" />
-          Scroll or drag to explore full 101-decimal spectrum
+          Scroll or drag to explore full spectrum
         </span>
         <span className="text-[10px] text-white/40 font-mono">10.0 (Perfect) →</span>
       </div>
