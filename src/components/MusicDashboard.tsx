@@ -150,7 +150,7 @@ function computeRatingDistribution(albums: Album[]) {
     .sort((a, b) => a.rating - b.rating);
 }
 
-const RatingsChart = ({ albums }: { albums: Album[] }) => {
+const RatingsChart = ({ albums, onRatingClick }: { albums: Album[], onRatingClick?: (r: string) => void }) => {
   // ── data & refs ──────────────────────────────────────────────────────────
   const data = useMemo(() => computeRatingDistribution(albums), [albums]);
   const maxCount = Math.max(...data.map((d) => d.count), 1);
@@ -158,6 +158,7 @@ const RatingsChart = ({ albums }: { albums: Album[] }) => {
   const isDraggingRef = useRef(false);
   const startXRef = useRef(0);
   const scrollLeftRef = useRef(0);
+  const dragDistanceRef = useRef(0);
 
   // Auto-scroll to ~6.5 on mount so populated area is visible first
   useEffect(() => {
@@ -171,14 +172,16 @@ const RatingsChart = ({ albums }: { albums: Album[] }) => {
   const onMouseDown = (e: React.MouseEvent) => {
     if (!scrollRef.current) return;
     isDraggingRef.current = true;
+    dragDistanceRef.current = 0;
     startXRef.current = e.pageX - scrollRef.current.offsetLeft;
     scrollLeftRef.current = scrollRef.current.scrollLeft;
   };
   const onMouseMove = (e: React.MouseEvent) => {
     if (!isDraggingRef.current || !scrollRef.current) return;
     e.preventDefault();
-    scrollRef.current.scrollLeft =
-      scrollLeftRef.current - (e.pageX - scrollRef.current.offsetLeft - startXRef.current) * 1.5;
+    const walk = e.pageX - scrollRef.current.offsetLeft - startXRef.current;
+    dragDistanceRef.current += Math.abs(walk);
+    scrollRef.current.scrollLeft = scrollLeftRef.current - walk * 1.5;
   };
   const onDragEnd = () => { isDraggingRef.current = false; };
 
@@ -297,8 +300,13 @@ const RatingsChart = ({ albums }: { albums: Album[] }) => {
             return (
               <div
                 key={ratingStr}
-                className="w-7 shrink-0 flex flex-col items-center"
+                className={`w-7 shrink-0 flex flex-col items-center group rounded-lg transition-colors ${count > 0 ? 'cursor-pointer hover:bg-white/5' : ''}`}
                 style={{ height: `${BAR_AREA_H + 36 + 28}px` }}
+                onClick={() => {
+                  if (count > 0 && dragDistanceRef.current < 5 && onRatingClick) {
+                    onRatingClick(ratingStr);
+                  }
+                }}
               >
                 {/* Always-visible count pill (36 px zone) */}
                 <div className="h-9 flex items-center justify-center">
@@ -378,8 +386,7 @@ const RatingsChart = ({ albums }: { albums: Album[] }) => {
 
 
 // ─── Interactive Album List ───────────────────────────────────────────────────
-const AlbumList = ({ albums }: { albums: Album[] }) => {
-  const [searchQuery, setSearchQuery] = useState('');
+const AlbumList = ({ albums, searchQuery, setSearchQuery }: { albums: Album[], searchQuery: string, setSearchQuery: (s: string) => void }) => {
   const [sortBy, setSortBy] = useState<SortOption>('rating');
 
   const filteredAndSorted = useMemo(() => {
@@ -538,6 +545,7 @@ const AlbumList = ({ albums }: { albums: Album[] }) => {
 // ─── Main Component ───────────────────────────────────────────────────────────
 const MusicDashboard = () => {
   const albums = rawAlbumData as Album[];
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Keep original sorted array for stats purposes if needed, 
   // but AlbumList handles its own sorting
@@ -610,7 +618,7 @@ const MusicDashboard = () => {
 
         {/* ── BIG: Interactive Album List ── */}
         <div className="lg:col-span-7 flex flex-col h-[950px]">
-          <AlbumList albums={baseSortedAlbums} />
+          <AlbumList albums={baseSortedAlbums} searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
         </div>
 
         {/* ── RIGHT COLUMN ── */}
@@ -698,7 +706,13 @@ const MusicDashboard = () => {
 
       {/* Ratings Distribution — full width below */}
       <div className="mt-5">
-        <RatingsChart albums={albums} />
+        <RatingsChart
+          albums={albums}
+          onRatingClick={(ratingStr) => {
+            setSearchQuery(ratingStr);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+        />
       </div>
     </div>
   );
