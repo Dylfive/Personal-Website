@@ -10,7 +10,11 @@ import rawAlbumData from '../../data/Album-Data.json';
 
 type FormState = 'IDLE' | 'ENRICHING' | 'REVIEW' | 'SUBMITTING' | 'SUCCESS';
 
-export default function AlbumIntakeForm() {
+interface AlbumIntakeFormProps {
+  onViewCollection?: () => void;
+}
+
+export default function AlbumIntakeForm({ onViewCollection }: AlbumIntakeFormProps = {}) {
   const [formState, setFormState] = useState<FormState>('IDLE');
   
   // Initial inputs
@@ -266,12 +270,22 @@ export default function AlbumIntakeForm() {
               <p className="text-white/50 mb-8 max-w-sm">
                 Your album was successfully pushed to GitHub. The changes will be live shortly.
               </p>
-              <button
-                onClick={handleReset}
-                className="px-8 py-3 rounded-full bg-white text-black font-bold hover:bg-white/90 transition-colors"
-              >
-                Add Another Album
-              </button>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  onClick={handleReset}
+                  className="px-6 py-3 rounded-full bg-white text-black font-bold hover:bg-white/90 transition-colors"
+                >
+                  Add Another Album
+                </button>
+                {onViewCollection && (
+                  <button
+                    onClick={onViewCollection}
+                    className="px-6 py-3 rounded-full bg-white/10 border border-white/20 text-white font-bold hover:bg-white/20 transition-colors"
+                  >
+                    View Collection 📊
+                  </button>
+                )}
+              </div>
             </motion.div>
           )}
 
