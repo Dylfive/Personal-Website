@@ -30,6 +30,19 @@ async function callGitHubAPI(body: Record<string, unknown>): Promise<void> {
   }
 }
 
+export async function fetchGitHubAlbums(): Promise<AlbumEntry[]> {
+  try {
+    const res = await fetch('https://raw.githubusercontent.com/Dylfive/Personal-Website/main/src/data/Album-Data.json');
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (err) {
+    console.warn('Failed to fetch raw GitHub albums', err);
+  }
+  const rawData = await import('../data/Album-Data.json');
+  return rawData.default as AlbumEntry[];
+}
+
 export async function appendAlbumToGitHub(newAlbum: AlbumEntry): Promise<void> {
   await callGitHubAPI({ action: 'append', album: newAlbum });
 }
@@ -40,3 +53,4 @@ export async function updateAlbumOnGitHub(
 ): Promise<void> {
   await callGitHubAPI({ action: 'update', album: updatedAlbum, originalName });
 }
+
