@@ -1,119 +1,42 @@
+// albumStore.ts
+// All GitHub API calls now go through a Supabase Edge Function so the
+// GitHub token is never exposed in the browser bundle.
+// See: supabase/functions/github-album-api/index.ts
+
 import type { AlbumEntry } from '../types/album';
+import { supabase } from './supabase';
 
-// Mutex for preventing race conditions
-let isSaving = false;
+const EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/github-album-api`;
 
-async function fetchGitHubFile() {
-  const token = localStorage.getItem('GITHUB_TOKEN');
-  // These are non-sensitive config values, hardcoded to avoid build-time env var issues
-  const repo = 'Dylfive/Personal-Website';
-  const path = 'src/data/Album-Data.json';
-  const branch = 'main';
+async function callGitHubAPI(body: Record<string, unknown>): Promise<void> {
+  const { data: { session } } = await supabase.auth.getSession();
 
-  if (!token) {
-    throw new Error('Missing GitHub Token. Please open Admin Settings and enter your PAT.');
+  if (!session) {
+    throw new Error('You must be signed in to save album data.');
   }
 
-  const url = `https://api.github.com/repos/${repo}/contents/${path}?ref=${branch}`;
-  const getRes = await fetch(url, {
+  const response = await fetch(EDGE_FUNCTION_URL, {
+    method: 'POST',
     headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/vnd.github.v3+json',
-    },
-  });
-
-  if (!getRes.ok) {
-    const errBody = await getRes.json().catch(() => ({}));
-    throw new Error(`Failed to fetch current data: ${getRes.status} ${getRes.statusText} — ${errBody.message || 'check your GitHub PAT has repo read/write access'}`);
-  }
-
-  const fileData = await getRes.json();
-  const sha = fileData.sha;
-  const base64Content = fileData.content.replace(/\n/g, '');
-  const decodedContent = decodeURIComponent(escape(atob(base64Content)));
-
-  let albums: AlbumEntry[] = [];
-  try {
-    albums = JSON.parse(decodedContent);
-  } catch {
-    throw new Error('Failed to parse existing album data.');
-  }
-
-  return { albums, sha, token, repo, path, branch };
-}
-
-export async function fetchGitHubAlbums(): Promise<AlbumEntry[]> {
-  const { albums } = await fetchGitHubFile();
-  return albums;
-}
-
-async function commitGitHubFile(
-  albums: AlbumEntry[],
-  sha: string,
-  commitMessage: string,
-  token: string,
-  repo: string,
-  path: string,
-  branch: string
-) {
-  const updatedJson = JSON.stringify(albums, null, 2);
-  const updatedBase64 = btoa(unescape(encodeURIComponent(updatedJson)));
-
-  const putUrl = `https://api.github.com/repos/${repo}/contents/${path}`;
-  const putRes = await fetch(putUrl, {
-    method: 'PUT',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/vnd.github.v3+json',
       'Content-Type': 'application/json',
+      Authorization: `Bearer ${session.access_token}`,
     },
-    body: JSON.stringify({ message: commitMessage, content: updatedBase64, sha, branch }),
+    body: JSON.stringify(body),
   });
 
-  if (!putRes.ok) {
-    const errObj = await putRes.json().catch(() => ({}));
-    throw new Error(`Failed to commit: ${putRes.statusText} - ${errObj.message || ''}`);
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error(err.error ?? `Request failed: ${response.statusText}`);
   }
 }
 
 export async function appendAlbumToGitHub(newAlbum: AlbumEntry): Promise<void> {
-  if (isSaving) throw new Error('A save is already in progress. Please wait.');
-  isSaving = true;
-  try {
-    const { albums, sha, token, repo, path, branch } = await fetchGitHubFile();
-    albums.push(newAlbum);
-    await commitGitHubFile(
-      albums, sha,
-      `Add album: ${newAlbum.Album} by ${newAlbum.Artist} via Intake Form`,
-      token, repo, path, branch
-    );
-  } finally {
-    isSaving = false;
-  }
+  await callGitHubAPI({ action: 'append', album: newAlbum });
 }
 
-export async function updateAlbumOnGitHub(originalName: string, updatedAlbum: AlbumEntry): Promise<void> {
-  if (isSaving) throw new Error('A save is already in progress. Please wait.');
-  isSaving = true;
-  try {
-    const { albums, sha, token, repo, path, branch } = await fetchGitHubFile();
-
-    const idx = albums.findIndex(
-      (a) => String(a.Album).toLowerCase().trim() === originalName.toLowerCase().trim()
-    );
-
-    if (idx === -1) {
-      throw new Error(`Could not find "${originalName}" in the dataset to update.`);
-    }
-
-    albums[idx] = updatedAlbum;
-
-    await commitGitHubFile(
-      albums, sha,
-      `Update album: ${updatedAlbum.Album} by ${updatedAlbum.Artist} via Intake Form`,
-      token, repo, path, branch
-    );
-  } finally {
-    isSaving = false;
-  }
+export async function updateAlbumOnGitHub(
+  originalName: string,
+  updatedAlbum: AlbumEntry,
+): Promise<void> {
+  await callGitHubAPI({ action: 'update', album: updatedAlbum, originalName });
 }
