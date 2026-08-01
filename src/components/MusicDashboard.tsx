@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, ChevronLeft, Music, ExternalLink, Star, Calendar, Clock, Trophy, Disc3, Search, ArrowUpDown, BarChart2 } from 'lucide-react';
-import rawAlbumData from '../data/Album-Data.json';
+import { ChevronRight, ChevronLeft, Music, ExternalLink, Star, Calendar, Clock, Trophy, Disc3, Search, ArrowUpDown, BarChart2, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { getUserAlbums, seedUserAlbums, clearUserAlbums } from '../lib/albumStore';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 import type { AlbumEntry as Album } from '../types/album';
@@ -543,11 +544,50 @@ const AlbumList = ({ albums, searchQuery, setSearchQuery }: { albums: Album[], s
   );
 };
 
+interface MusicDashboardProps {
+  onAddAlbumClick?: () => void;
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
-const MusicDashboard = () => {
-  const albums = rawAlbumData as Album[];
+const MusicDashboard: React.FC<MusicDashboardProps> = ({ onAddAlbumClick }) => {
+  const { user } = useAuth();
+  const [albums, setAlbums] = useState<Album[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState('');
-  
+
+  const loadAlbums = async () => {
+    setLoading(true);
+    try {
+      const data = await getUserAlbums(user?.id);
+      setAlbums(data);
+    } catch (err) {
+      console.error('Failed to load user albums', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAlbums();
+  }, [user?.id]);
+
+  const handleSeed = async () => {
+    if (!user?.id) return;
+    setLoading(true);
+    const seeded = await seedUserAlbums(user.id);
+    setAlbums(seeded);
+    setLoading(false);
+  };
+
+  const handleClear = async () => {
+    if (!user?.id) return;
+    if (!window.confirm('Are you sure you want to clear your personal album collection?')) return;
+    setLoading(true);
+    await clearUserAlbums(user.id);
+    setAlbums([]);
+    setLoading(false);
+  };
+
   // Keep original sorted array for stats purposes if needed, 
   // but AlbumList handles its own sorting
   const baseSortedAlbums = useMemo(
@@ -584,6 +624,60 @@ const MusicDashboard = () => {
     }, 2000);
   };
 
+  if (loading) {
+    return (
+      <div className="glass-panel p-16 rounded-3xl neon-border flex flex-col items-center justify-center min-h-[400px]">
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ repeat: Infinity, ease: 'linear', duration: 1 }}
+          className="w-10 h-10 border-2 border-white/20 border-t-neon-purple rounded-full mb-4"
+        />
+        <p className="text-white/40 text-sm font-medium">Loading collection…</p>
+      </div>
+    );
+  }
+
+  // ── Empty State for Authenticated Users with 0 Albums ──
+  if (user && albums.length === 0) {
+    return (
+      <div className="glass-panel p-8 sm:p-14 rounded-3xl neon-border text-center flex flex-col items-center justify-center min-h-[450px]">
+        <div className="w-20 h-20 rounded-3xl bg-neon-purple/15 border border-neon-purple/30 flex items-center justify-center mb-6">
+          <Disc3 className="w-10 h-10 text-neon-purple animate-pulse" />
+        </div>
+        <h3 className="text-3xl font-black mb-3">Your Collection is Empty</h3>
+        <p className="text-white/50 text-sm sm:text-base max-w-md mb-8 leading-relaxed">
+          Logged in as <span className="text-white font-semibold">{user.email}</span>. Start building your own rated album collection or import the starter dataset!
+        </p>
+        <div className="flex flex-col sm:flex-row gap-4">
+          {onAddAlbumClick ? (
+            <button
+              onClick={onAddAlbumClick}
+              className="btn-primary px-8 py-3.5 rounded-xl font-bold flex items-center justify-center gap-2"
+            >
+              <Plus className="w-5 h-5" />
+              Add Your First Album
+            </button>
+          ) : (
+            <button
+              onClick={() => navigate('/intake')}
+              className="btn-primary px-8 py-3.5 rounded-xl font-bold flex items-center justify-center gap-2"
+            >
+              <Plus className="w-5 h-5" />
+              Add Your First Album
+            </button>
+          )}
+          <button
+            onClick={handleSeed}
+            className="px-6 py-3.5 rounded-xl bg-white/5 border border-white/10 hover:bg-white/15 font-bold text-white/80 transition-all flex items-center justify-center gap-2"
+          >
+            <Sparkles className="w-4 h-4 text-neon-cyan" />
+            Import Starter List (171 albums)
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="glass-panel p-6 rounded-3xl neon-border overflow-hidden">
       {/* Secret flash overlay */}
@@ -596,7 +690,7 @@ const MusicDashboard = () => {
       )}
 
       {/* Section header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
         <div>
           <h3 className="text-2xl font-bold flex items-center gap-2">
             <Music
@@ -610,8 +704,31 @@ const MusicDashboard = () => {
             />
             Music Taste Dashboard
           </h3>
-          <p className="text-white/40 text-sm mt-1">{albums.length} albums rated · powered by personal data</p>
+          <p className="text-white/40 text-sm mt-1">
+            {albums.length} albums rated {user ? `· ${user.email}'s collection` : '· powered by personal data'}
+          </p>
         </div>
+
+        {user && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleSeed}
+              title="Import 171 starter albums"
+              className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold text-white/60 hover:text-white flex items-center gap-1.5 transition-colors"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-neon-cyan" />
+              Import Starter Data
+            </button>
+            <button
+              onClick={handleClear}
+              title="Clear your collection"
+              className="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-xs font-semibold text-red-400 flex items-center gap-1.5 transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Clear
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 3-segment grid */}

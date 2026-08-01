@@ -16,7 +16,7 @@ export default function IntakePage() {
       <div className="container mx-auto relative z-10 max-w-6xl flex flex-col items-center">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-black mb-2">
+          <h1 className="text-3xl font-serif font-black mb-2">
             Album <span className="gradient-text">Studio</span>
           </h1>
           <p className="text-white/50 text-sm max-w-md mx-auto">
@@ -30,7 +30,7 @@ export default function IntakePage() {
             onClick={() => setActiveTab('add')}
             className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 ${
               activeTab === 'add'
-                ? 'bg-neon-purple text-white shadow-[0_0_20px_rgba(188,19,254,0.4)]'
+                ? 'bg-accent-amber text-black shadow-[0_0_18px_rgba(245,166,35,0.35)]'
                 : 'text-white/60 hover:text-white hover:bg-white/5'
             }`}
           >
@@ -42,7 +42,7 @@ export default function IntakePage() {
             onClick={() => setActiveTab('collection')}
             className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 ${
               activeTab === 'collection'
-                ? 'bg-neon-purple text-white shadow-[0_0_20px_rgba(188,19,254,0.4)]'
+                ? 'bg-accent-amber text-black shadow-[0_0_18px_rgba(245,166,35,0.35)]'
                 : 'text-white/60 hover:text-white hover:bg-white/5'
             }`}
           >
@@ -69,7 +69,7 @@ export default function IntakePage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
             >
-              <MusicDashboard />
+              <MusicDashboard onAddAlbumClick={() => setActiveTab('add')} />
             </motion.div>
           )}
         </div>

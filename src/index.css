@@ -4,51 +4,101 @@
 
 @layer base {
   body {
-    @apply bg-[#0a0a0a] text-white selection:bg-[#bc13fe]/30 selection:text-white;
+    @apply bg-background text-foreground selection:bg-accent-amber/30 selection:text-white;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  h1, h2, h3 {
+    font-family: 'Playfair Display', Georgia, serif;
   }
 }
 
 @layer components {
+  /* ── Border / Glow ───────────────────────────────────────────────────── */
   .neon-border {
     @apply relative border border-white/10 transition-all duration-300;
   }
 
   .neon-border:hover {
-    @apply border-[#bc13fe]/50 shadow-[0_0_20px_rgba(188,19,254,0.3)];
+    @apply border-accent-amber/40 shadow-[0_0_24px_rgba(245,166,35,0.2)];
   }
 
+  /* ── Typography ──────────────────────────────────────────────────────── */
   .gradient-text {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-[#bc13fe] via-[#3b82f6] to-[#06b6d4] animate-gradient-x;
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(90deg, #f5a623, #e8941a, #5b7fa6);
+    background-size: 200% 200%;
+    animation: gradient-x 12s ease infinite;
   }
 
+  /* ── Surfaces ────────────────────────────────────────────────────────── */
   .glass-panel {
-    @apply bg-white/5 backdrop-blur-md border border-white/10;
+    @apply bg-white/[0.04] backdrop-blur-md border border-white/[0.08];
   }
 
+  .surface-panel {
+    background: #161618;
+    @apply border border-white/[0.06] rounded-2xl;
+  }
+
+  /* ── Buttons ─────────────────────────────────────────────────────────── */
   .btn-primary {
     @apply relative overflow-hidden rounded-full px-8 py-3 font-bold text-white transition-all duration-300;
-    background: linear-gradient(90deg, #bc13fe, #3b82f6);
+    background: linear-gradient(90deg, #f5a623, #e8941a);
+    color: #0d0d0f;
   }
 
   .btn-primary:hover {
-    @apply scale-105 shadow-[0_0_30px_rgba(188,19,254,0.5)];
+    @apply scale-[1.03] shadow-[0_0_30px_rgba(245,166,35,0.45)];
   }
 
+  .btn-ghost {
+    @apply px-6 py-2.5 rounded-full border border-white/15 text-white/70 font-medium transition-all duration-200;
+  }
+
+  .btn-ghost:hover {
+    @apply border-accent-amber/40 text-white bg-white/5;
+  }
+
+  /* ── Shimmer ─────────────────────────────────────────────────────────── */
   .shimmer {
     @apply relative overflow-hidden before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_infinite] before:bg-gradient-to-r before:from-transparent before:via-white/10 before:to-transparent;
   }
+
+  /* ── Noise grain overlay ─────────────────────────────────────────────── */
+  .noise-overlay::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    background-size: 200px 200px;
+    z-index: 0;
+  }
+
+  /* ── Amber accent line (top shimmer on cards) ────────────────────────── */
+  .amber-shimmer-top {
+    @apply absolute top-0 left-0 right-0 h-px;
+    background: linear-gradient(90deg, transparent, #f5a623, transparent);
+    opacity: 0.6;
+  }
 }
 
-/* Custom Scrollbar */
+/* ── Custom Scrollbar ──────────────────────────────────────────────────── */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-[#0a0a0a];
+  background: #0d0d0f;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-white/10 rounded-full hover:bg-[#bc13fe]/50 transition-colors;
+  @apply bg-white/10 rounded-full;
+  transition: background 0.2s;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(245, 166, 35, 0.4);
 }

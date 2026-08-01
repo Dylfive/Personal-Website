@@ -3,10 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, AlertCircle, CheckCircle2, ArrowRight, AlertTriangle } from 'lucide-react';
 import RatingInput from './RatingInput';
 import ReviewScreen from './ReviewScreen';
-import { appendAlbumToGitHub, fetchGitHubAlbums } from '../../lib/albumStore';
+import { appendAlbumToGitHub, getUserAlbums, addUserAlbum } from '../../lib/albumStore';
 import { enrichAlbumData } from '../../lib/aiEnrichment';
 import type { AlbumEntry } from '../../types/album';
 import rawAlbumData from '../../data/Album-Data.json';
+import { useAuth } from '../../contexts/AuthContext';
 
 type FormState = 'IDLE' | 'ENRICHING' | 'REVIEW' | 'SUBMITTING' | 'SUCCESS';
 
@@ -29,6 +30,8 @@ export default function AlbumIntakeForm({ onViewCollection }: AlbumIntakeFormPro
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
   const [bypassDuplicate, setBypassDuplicate] = useState(false);
 
+  const { user } = useAuth();
+
   const handleEnrich = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -48,8 +51,8 @@ export default function AlbumIntakeForm({ onViewCollection }: AlbumIntakeFormPro
     if (!bypassDuplicate) {
       setFormState('ENRICHING');
       try {
-        const liveAlbums = await fetchGitHubAlbums();
-        const existing = liveAlbums.find(
+        const userAlbums = await getUserAlbums(user?.id);
+        const existing = userAlbums.find(
           (a) => String(a.Album).toLowerCase().trim() === albumName.toLowerCase().trim()
         );
         if (existing) {
@@ -58,7 +61,7 @@ export default function AlbumIntakeForm({ onViewCollection }: AlbumIntakeFormPro
           return;
         }
       } catch (err) {
-        console.warn('Failed to fetch live data for duplicate check', err);
+        console.warn('Failed to fetch user data for duplicate check', err);
         const existing = (rawAlbumData as AlbumEntry[]).find(
           (a) => String(a.Album).toLowerCase().trim() === albumName.toLowerCase().trim()
         );
@@ -87,7 +90,11 @@ export default function AlbumIntakeForm({ onViewCollection }: AlbumIntakeFormPro
     setFormState('SUBMITTING');
     setError(null);
     try {
-      await appendAlbumToGitHub(finalEntry);
+      if (user?.id) {
+        await addUserAlbum(user.id, finalEntry);
+      } else {
+        await appendAlbumToGitHub(finalEntry);
+      }
       
       // Clear
       setAlbumName('');

@@ -104,13 +104,13 @@ const Resume = () => {
         className="mb-16 flex flex-col md:flex-row justify-between items-end gap-6"
       >
         <div>
-          <h1 className="text-5xl font-black mb-4">Interactive <span className="gradient-text">Resume</span></h1>
+          <h1 className="text-5xl font-serif font-black mb-4">Interactive <span className="gradient-text">Resume</span></h1>
         </div>
         <a 
           href={`${import.meta.env.BASE_URL}Dylan-Gauvin-Resume.pdf`}
           target="_blank"
           rel="noopener noreferrer"
-          className="px-6 py-2 rounded-full border border-neon-blue/50 text-neon-blue font-bold hover:bg-neon-blue/10 transition-all text-sm"
+          className="px-6 py-2 rounded-full border border-accent-amber/50 text-accent-amber font-bold hover:bg-accent-amber/10 transition-all text-sm"
         >
           Download PDF
         </a>
@@ -120,22 +120,22 @@ const Resume = () => {
         {/* Left Column: Experience */}
         <div className="lg:col-span-2">
           <div className="flex items-center gap-3 mb-8">
-            <Briefcase className="text-neon-purple" />
-            <h2 className="text-2xl font-bold">Experience</h2>
+            <Briefcase className="text-accent-amber" />
+            <h2 className="text-2xl font-serif font-bold">Experience</h2>
           </div>
           {experiences.map((exp, i) => (
             <ExperienceCard key={i} {...exp} index={i} />
           ))}
 
           <div className="flex items-center gap-3 mb-8 mt-16">
-            <GraduationCap className="text-neon-blue" />
-            <h2 className="text-2xl font-bold">Education</h2>
+            <GraduationCap className="text-accent-slate" />
+            <h2 className="text-2xl font-serif font-bold">Education</h2>
           </div>
           <div className="glass-panel p-8 rounded-3xl neon-border">
             <div className="flex justify-between items-start mb-4">
               <div>
                 <h3 className="text-xl font-bold">B.Sc. Computer Science Honours</h3>
-                <p className="text-neon-purple font-medium">York University</p>
+                <p className="text-accent-amber font-medium">York University</p>
               </div>
               <span className="text-white/40 text-sm">2022 – 2027</span>
             </div>
@@ -151,8 +151,8 @@ const Resume = () => {
         <div className="space-y-12">
           <div>
             <div className="flex items-center gap-3 mb-8">
-              <Code className="text-neon-cyan" />
-              <h2 className="text-2xl font-bold">Technical Skills</h2>
+              <Code className="text-accent-slate" />
+              <h2 className="text-2xl font-serif font-bold">Technical Skills</h2>
             </div>
             <div className="space-y-6">
               {skills.map((skillGroup, i) => (
@@ -175,12 +175,12 @@ const Resume = () => {
 
           <div>
             <div className="flex items-center gap-3 mb-8">
-              <Award className="text-neon-magenta" />
-              <h2 className="text-2xl font-bold">Certifications</h2>
+              <Award className="text-accent-amber" />
+              <h2 className="text-2xl font-serif font-bold">Certifications</h2>
             </div>
             <div className="glass-panel p-6 rounded-2xl border-white/10 space-y-4">
               <div className="flex gap-3 items-center">
-                <Rocket className="text-neon-purple w-5 h-5 shrink-0" />
+                <Rocket className="text-accent-amber w-5 h-5 shrink-0" />
                 <div>
                   <p className="text-sm font-bold">Azure Fundamentals</p>
                   <p className="text-[10px] text-white/40 uppercase tracking-widest">Completed</p>
@@ -192,7 +192,7 @@ const Resume = () => {
           <div>
             <div className="flex items-center gap-3 mb-8">
               <Globe className="text-neon-green" />
-              <h2 className="text-2xl font-bold">Interests</h2>
+              <h2 className="text-2xl font-serif font-bold">Interests</h2>
             </div>
             <div className="flex flex-wrap gap-2">
               {["CTF Competitions", "AI Security", "Cyber Forensics", "Vulnerability Research"].map((interest, i) => (

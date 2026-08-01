@@ -1,19 +1,174 @@
 // albumStore.ts
-// All GitHub API calls now go through a Supabase Edge Function so the
-// GitHub token is never exposed in the browser bundle.
-// See: supabase/functions/github-album-api/index.ts
+// Per-user album management backed by Supabase & per-user local cache.
+//
+// ─── OWNER POLICY ────────────────────────────────────────────────────────────
+// Only the owner account syncs album adds back to the GitHub repo (via the
+// Supabase Edge Function). All other authenticated users store their data
+// exclusively in Supabase's user_albums table.
+//
+// ─── FUTURE: AlbumWall Visual Gallery ────────────────────────────────────────
+// Planned feature: a full-screen interactive wall where albums are arranged
+// spatially by dominant cover colour (extracted at intake time via Canvas API
+// or a server-side colour-extraction job). Users can drag, zoom, and rearrange
+// albums. Dominant colour will be stored as a new `dominant_color` column in
+// the user_albums table.
 
 import type { AlbumEntry } from '../types/album';
 import { supabase } from './supabase';
+import rawAlbumData from '../data/Album-Data.json';
 
 const EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/github-album-api`;
+
+/** Only this email address triggers the GitHub repo sync. */
+const OWNER_EMAIL = 'dyl.gauvin@gmail.com';
+
+// ─── Per-User Supabase / Storage Functions ────────────────────────────────────
+
+export async function getUserAlbums(userId?: string): Promise<AlbumEntry[]> {
+  if (!userId) {
+    // Unauthenticated public showcase view: return default dataset
+    return rawAlbumData as AlbumEntry[];
+  }
+
+  // 1. Try fetching from Supabase `user_albums` table
+  try {
+    const { data, error } = await supabase
+      .from('user_albums')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (!error && data) {
+      if (data.length > 0) {
+        const parsed = data.map((item: any) => ({
+          Album: item.album,
+          Artist: item.artist,
+          Rating: Number(item.rating),
+          Genre: item.genre,
+          'Release Year': Number(item.release_year),
+          Length: item.length,
+          CoverArt: item.cover_art ?? '',
+          AppleMusicLink: item.apple_music_link ?? '',
+          TrackCount: item.track_count ?? 0,
+          ExactReleaseDate: item.exact_release_date ?? '',
+        }));
+        // Cache to local storage
+        localStorage.setItem(`albums_user_${userId}`, JSON.stringify(parsed));
+        return parsed;
+      } else {
+        // Explicitly empty in Supabase
+        const cached = localStorage.getItem(`albums_user_${userId}`);
+        if (cached !== null) {
+          return JSON.parse(cached);
+        }
+        return [];
+      }
+    }
+  } catch (err) {
+    console.warn('Supabase query error, checking local storage cache', err);
+  }
+
+  // 2. Local storage fallback per user
+  const cached = localStorage.getItem(`albums_user_${userId}`);
+  if (cached !== null) {
+    try {
+      return JSON.parse(cached);
+    } catch {}
+  }
+
+  // Brand new user defaults to empty array
+  return [];
+}
+
+export async function addUserAlbum(userId: string, newAlbum: AlbumEntry): Promise<AlbumEntry[]> {
+  // 1. Insert into Supabase `user_albums` table
+  try {
+    const { error } = await supabase.from('user_albums').insert([
+      {
+        user_id: userId,
+        album: String(newAlbum.Album),
+        artist: newAlbum.Artist,
+        rating: newAlbum.Rating,
+        genre: newAlbum.Genre,
+        release_year: newAlbum['Release Year'],
+        length: newAlbum.Length,
+        cover_art: newAlbum.CoverArt ?? '',
+        apple_music_link: newAlbum.AppleMusicLink ?? '',
+        track_count: newAlbum.TrackCount ?? 0,
+        exact_release_date: newAlbum.ExactReleaseDate ?? '',
+      },
+    ]);
+    if (error) {
+      console.warn('Supabase insert warning:', error.message);
+    }
+  } catch (err) {
+    console.warn('Supabase insert exception:', err);
+  }
+
+  // 2. Update local user storage
+  const current = await getUserAlbums(userId);
+  // Avoid duplicate by album name
+  const filtered = current.filter(
+    (a) => String(a.Album).toLowerCase().trim() !== String(newAlbum.Album).toLowerCase().trim()
+  );
+  const updated = [newAlbum, ...filtered];
+  localStorage.setItem(`albums_user_${userId}`, JSON.stringify(updated));
+
+  // GitHub sync — ONLY for the owner account to avoid polluting the portfolio repo
+  const { data: { user: currentUser } } = await supabase.auth.getUser();
+  if (currentUser?.email === OWNER_EMAIL) {
+    try {
+      await callGitHubAPI({ action: 'append', album: newAlbum });
+    } catch (err) {
+      console.warn('GitHub Edge Function sync notice:', err);
+    }
+  }
+
+  return updated;
+}
+
+export async function seedUserAlbums(userId: string): Promise<AlbumEntry[]> {
+  const seedData = rawAlbumData as AlbumEntry[];
+  localStorage.setItem(`albums_user_${userId}`, JSON.stringify(seedData));
+
+  try {
+    const rows = seedData.map((a) => ({
+      user_id: userId,
+      album: String(a.Album),
+      artist: a.Artist,
+      rating: a.Rating,
+      genre: a.Genre,
+      release_year: a['Release Year'],
+      length: a.Length,
+      cover_art: a.CoverArt ?? '',
+      apple_music_link: a.AppleMusicLink ?? '',
+      track_count: a.TrackCount ?? 0,
+      exact_release_date: a.ExactReleaseDate ?? '',
+    }));
+    await supabase.from('user_albums').insert(rows);
+  } catch (err) {
+    console.warn('Supabase batch insert error during seed:', err);
+  }
+
+  return seedData;
+}
+
+export async function clearUserAlbums(userId: string): Promise<void> {
+  localStorage.setItem(`albums_user_${userId}`, JSON.stringify([]));
+  try {
+    await supabase.from('user_albums').delete().eq('user_id', userId);
+  } catch (err) {
+    console.warn('Supabase delete error during clear:', err);
+  }
+}
+
+// ─── Legacy GitHub API Helpers ────────────────────────────────────────────────
 
 async function callGitHubAPI(body: Record<string, unknown>): Promise<void> {
   const { data: { session } } = await supabase.auth.getSession();
 
-  if (!session) {
-    throw new Error('You must be signed in to save album data.');
-  }
+  // Double-check: only proceed if the session belongs to the owner
+  if (!session || session.user?.email !== OWNER_EMAIL) return;
 
   const response = await fetch(EDGE_FUNCTION_URL, {
     method: 'POST',
@@ -26,7 +181,7 @@ async function callGitHubAPI(body: Record<string, unknown>): Promise<void> {
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({ error: response.statusText }));
-    throw new Error(err.error ?? `Request failed: ${response.statusText}`);
+    console.warn('GitHub API sync warning:', err.error);
   }
 }
 
@@ -39,8 +194,7 @@ export async function fetchGitHubAlbums(): Promise<AlbumEntry[]> {
   } catch (err) {
     console.warn('Failed to fetch raw GitHub albums', err);
   }
-  const rawData = await import('../data/Album-Data.json');
-  return rawData.default as AlbumEntry[];
+  return rawAlbumData as AlbumEntry[];
 }
 
 export async function appendAlbumToGitHub(newAlbum: AlbumEntry): Promise<void> {
@@ -53,4 +207,3 @@ export async function updateAlbumOnGitHub(
 ): Promise<void> {
   await callGitHubAPI({ action: 'update', album: updatedAlbum, originalName });
 }
-
