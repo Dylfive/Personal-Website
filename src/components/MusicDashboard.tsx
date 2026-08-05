@@ -403,7 +403,10 @@ const AlbumList = ({ albums, searchQuery, setSearchQuery, onEditAlbum }: { album
 
     // Sort
     result.sort((a, b) => {
-      if (sortBy === 'rating') return b.Rating - a.Rating;
+      if (sortBy === 'rating') {
+        if (b.Rating !== a.Rating) return b.Rating - a.Rating;
+        return (a.RankOrder ?? 999) - (b.RankOrder ?? 999);
+      }
       if (sortBy === 'year_desc') return b['Release Year'] - a['Release Year'];
       if (sortBy === 'year_asc') return a['Release Year'] - b['Release Year'];
       if (sortBy === 'title') return String(a.Album).localeCompare(String(b.Album));
@@ -499,12 +502,24 @@ const AlbumList = ({ albums, searchQuery, setSearchQuery, onEditAlbum }: { album
 
                   <div className="flex-1 min-w-0 flex flex-col justify-center">
                     <h4 className="text-base sm:text-lg font-bold text-white truncate">{String(album.Album)}</h4>
-                    <p className="text-xs sm:text-sm text-[#bc13fe] truncate">{album.Artist}</p>
+                    <p className="text-xs sm:text-sm text-[#bc13fe] truncate flex items-center gap-2">
+                      {album.Artist}
+                      {album.IsHidden && (
+                        <span className="text-[9px] font-mono font-bold text-red-400 bg-red-500/10 px-1.5 py-0.2 rounded border border-red-500/20">
+                          Hidden
+                        </span>
+                      )}
+                    </p>
                     
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5">
                       <div className="flex items-center gap-1">
                         <Star className="w-3 h-3 text-[#bc13fe] fill-[#bc13fe]" />
                         <span className="text-xs font-bold text-white">{album.Rating.toFixed(1)}</span>
+                        {album.RankOrder !== undefined && album.RankOrder !== null && (
+                          <span className="text-[10px] font-mono text-accent-amber font-bold ml-1 bg-accent-amber/10 px-1.5 py-0.5 rounded border border-accent-amber/20">
+                            P{album.RankOrder}
+                          </span>
+                        )}
                       </div>
                       <span className="w-1 h-1 rounded-full bg-white/20" />
                       <div className="flex items-center gap-1 text-white/50 text-xs">

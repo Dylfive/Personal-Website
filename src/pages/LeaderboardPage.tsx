@@ -336,7 +336,9 @@ export default function LeaderboardPage() {
           createdAt={selectedUser.createdAt}
           albumCount={selectedUser.albumCount}
           avgRating={selectedUser.avgRating}
+          visibleStats={selectedUser.visibleStats}
           onClose={() => setSelectedUser(null)}
+          onStatsUpdated={load}
         />
       )}
     </div>

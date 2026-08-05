@@ -36,11 +36,11 @@ export async function getUserAlbums(userId?: string): Promise<AlbumEntry[]> {
       .from('user_albums')
       .select('*')
       .eq('user_id', userId)
-      .order('created_at', { ascending: false });
+      .order('rating', { ascending: false });
 
     if (!error && data) {
       if (data.length > 0) {
-        const parsed = data.map((item: any) => ({
+        const parsed: AlbumEntry[] = data.map((item: any) => ({
           Album: item.album,
           Artist: item.artist,
           Rating: Number(item.rating),
@@ -51,7 +51,16 @@ export async function getUserAlbums(userId?: string): Promise<AlbumEntry[]> {
           AppleMusicLink: item.apple_music_link ?? '',
           TrackCount: item.track_count ?? 0,
           ExactReleaseDate: item.exact_release_date ?? '',
+          RankOrder: item.rank_order !== undefined && item.rank_order !== null ? Number(item.rank_order) : undefined,
+          IsHidden: item.is_hidden ?? false,
         }));
+
+        // Sort by Rating desc, then RankOrder asc (lower = better tiebreaker rank)
+        parsed.sort((a, b) => {
+          if (b.Rating !== a.Rating) return b.Rating - a.Rating;
+          return (a.RankOrder ?? 999) - (b.RankOrder ?? 999);
+        });
+
         // Cache to local storage
         localStorage.setItem(`albums_user_${userId}`, JSON.stringify(parsed));
         return parsed;
@@ -96,6 +105,8 @@ export async function addUserAlbum(userId: string, newAlbum: AlbumEntry): Promis
         apple_music_link: newAlbum.AppleMusicLink ?? '',
         track_count: newAlbum.TrackCount ?? 0,
         exact_release_date: newAlbum.ExactReleaseDate ?? '',
+        rank_order: newAlbum.RankOrder ?? null,
+        is_hidden: newAlbum.IsHidden ?? false,
       },
     ]);
     if (error) {
@@ -111,7 +122,10 @@ export async function addUserAlbum(userId: string, newAlbum: AlbumEntry): Promis
   const filtered = current.filter(
     (a) => String(a.Album).toLowerCase().trim() !== String(newAlbum.Album).toLowerCase().trim()
   );
-  const updated = [newAlbum, ...filtered];
+  const updated = [newAlbum, ...filtered].sort((a, b) => {
+    if (b.Rating !== a.Rating) return b.Rating - a.Rating;
+    return (a.RankOrder ?? 999) - (b.RankOrder ?? 999);
+  });
   localStorage.setItem(`albums_user_${userId}`, JSON.stringify(updated));
 
   // GitHub sync — ONLY for the owner account to avoid polluting the portfolio repo
@@ -166,6 +180,8 @@ export async function updateUserAlbum(
         apple_music_link: updatedAlbum.AppleMusicLink ?? '',
         track_count: updatedAlbum.TrackCount ?? 0,
         exact_release_date: updatedAlbum.ExactReleaseDate ?? '',
+        rank_order: updatedAlbum.RankOrder ?? null,
+        is_hidden: updatedAlbum.IsHidden ?? false,
       },
     ]);
     if (error) console.warn('Supabase update insert warning:', error.message);
@@ -180,7 +196,10 @@ export async function updateUserAlbum(
       String(a.Album).toLowerCase().trim() !== normalizedOriginal &&
       String(a.Album).toLowerCase().trim() !== normalizedNew
   );
-  const updated = [updatedAlbum, ...filtered];
+  const updated = [updatedAlbum, ...filtered].sort((a, b) => {
+    if (b.Rating !== a.Rating) return b.Rating - a.Rating;
+    return (a.RankOrder ?? 999) - (b.RankOrder ?? 999);
+  });
   localStorage.setItem(`albums_user_${userId}`, JSON.stringify(updated));
 
   // 5. GitHub sync — owner only

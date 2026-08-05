@@ -1,18 +1,26 @@
 // profileStore.ts
-// Manages user profiles (nickname, join date) and leaderboard aggregates.
+// Manages user profiles (nickname, join date, display preferences) and leaderboard aggregates.
 //
-// ─── SUPABASE TABLE REQUIRED ──────────────────────────────────────────────────
+// ─── SUPABASE TABLES & RLS REQUIRED ──────────────────────────────────────────
 // Run the following in your Supabase SQL editor before deploying:
 //
-//   CREATE TABLE user_profiles (
-//     user_id    UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-//     nickname   TEXT NOT NULL UNIQUE,
-//     created_at TIMESTAMPTZ DEFAULT NOW()
+//   CREATE TABLE IF NOT EXISTS user_profiles (
+//     user_id       UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+//     nickname      TEXT NOT NULL UNIQUE,
+//     visible_stats JSONB DEFAULT '["albums","avgRating","topEra","favoriteGenre","highestRated"]'::jsonb,
+//     created_at    TIMESTAMPTZ DEFAULT NOW()
 //   );
 //   ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
 //   CREATE POLICY "profiles_read_all" ON user_profiles
-//     FOR SELECT USING (auth.role() = 'authenticated');
+//     FOR SELECT USING (true);
 //   CREATE POLICY "profiles_upsert_own" ON user_profiles
+//     FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+//
+//   -- RLS for user_albums: ALLOW SELECT FOR ALL USERS (so friends can see stats)
+//   ALTER TABLE user_albums ENABLE ROW LEVEL SECURITY;
+//   CREATE POLICY "user_albums_read_all" ON user_albums
+//     FOR SELECT USING (true);
+//   CREATE POLICY "user_albums_write_own" ON user_albums
 //     FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 //
 // ─────────────────────────────────────────────────────────────────────────────
@@ -24,6 +32,7 @@ export interface UserProfile {
   userId: string;
   nickname: string;
   createdAt: string;
+  visibleStats?: string[];
 }
 
 export interface LeaderboardEntry {
@@ -34,7 +43,22 @@ export interface LeaderboardEntry {
   avgRating: number;
   topAlbum: AlbumEntry | null;
   topAlbumCover: string;
+  visibleStats?: string[];
 }
+
+export const ALL_STAT_KEYS = [
+  { key: 'albums', label: 'Total Albums' },
+  { key: 'avgRating', label: 'Average Rating' },
+  { key: 'topEra', label: 'Top Era / Decade' },
+  { key: 'favoriteGenre', label: 'Favorite Genre' },
+  { key: 'highestRated', label: 'Highest Rated Album' },
+  { key: 'lowestRated', label: 'Lowest Rated Album' },
+  { key: 'topArtist', label: 'Top Artist' },
+  { key: 'shortest', label: 'Shortest Album' },
+  { key: 'longest', label: 'Longest Album' },
+];
+
+export const DEFAULT_VISIBLE_STATS = ['albums', 'avgRating', 'topEra', 'favoriteGenre', 'highestRated'];
 
 // ─── Profile CRUD ─────────────────────────────────────────────────────────────
 
@@ -48,13 +72,43 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
 
     if (error || !data) return null;
 
+    let visibleStats = DEFAULT_VISIBLE_STATS;
+    if (data.visible_stats && Array.isArray(data.visible_stats)) {
+      visibleStats = data.visible_stats;
+    } else {
+      const savedLocal = localStorage.getItem(`profile_visible_stats_${userId}`);
+      if (savedLocal) {
+        try { visibleStats = JSON.parse(savedLocal); } catch {}
+      }
+    }
+
     return {
       userId: data.user_id,
       nickname: data.nickname,
       createdAt: data.created_at,
+      visibleStats,
     };
   } catch {
     return null;
+  }
+}
+
+/**
+ * Update user's visible stats preferences.
+ */
+export async function setUserVisibleStats(
+  userId: string,
+  visibleStats: string[]
+): Promise<boolean> {
+  localStorage.setItem(`profile_visible_stats_${userId}`, JSON.stringify(visibleStats));
+  try {
+    const { error } = await supabase
+      .from('user_profiles')
+      .update({ visible_stats: visibleStats })
+      .eq('user_id', userId);
+    return !error;
+  } catch {
+    return true; // saved locally
   }
 }
 
@@ -73,7 +127,6 @@ export async function setUserNickname(
     );
 
     if (error) {
-      // Postgres unique violation code
       if (error.code === '23505') {
         return 'That nickname is already taken. Please choose another.';
       }
@@ -89,8 +142,7 @@ export async function setUserNickname(
 
 /**
  * Fetch all user profiles + their album aggregates for the leaderboard.
- * We fetch profiles first, then batch-fetch albums per user.
- * (For a large user base this would need a DB view, but fine for a personal app.)
+ * Fetches profiles first, then batch-fetches albums per user.
  */
 export async function getLeaderboardData(): Promise<LeaderboardEntry[]> {
   try {
@@ -106,7 +158,7 @@ export async function getLeaderboardData(): Promise<LeaderboardEntry[]> {
     const userIds = profiles.map((p: any) => p.user_id);
     const { data: allAlbums, error: albumErr } = await supabase
       .from('user_albums')
-      .select('user_id, album, artist, rating, cover_art, genre, release_year')
+      .select('user_id, album, artist, rating, cover_art, genre, release_year, rank_order, is_hidden')
       .in('user_id', userIds);
 
     if (albumErr) {
@@ -115,6 +167,8 @@ export async function getLeaderboardData(): Promise<LeaderboardEntry[]> {
 
     const albumsByUser: Record<string, any[]> = {};
     (allAlbums ?? []).forEach((row: any) => {
+      // Ignore hidden albums for leaderboard statistics
+      if (row.is_hidden) return;
       if (!albumsByUser[row.user_id]) albumsByUser[row.user_id] = [];
       albumsByUser[row.user_id].push(row);
     });
@@ -132,10 +186,26 @@ export async function getLeaderboardData(): Promise<LeaderboardEntry[]> {
             ) / 10
           : 0;
 
-      const sorted = [...albums].sort(
-        (a: any, b: any) => Number(b.rating) - Number(a.rating)
-      );
+      // Sort by rating desc, then rank_order asc (tie-breaker rank)
+      const sorted = [...albums].sort((a: any, b: any) => {
+        if (Number(b.rating) !== Number(a.rating)) {
+          return Number(b.rating) - Number(a.rating);
+        }
+        const rA = a.rank_order !== null && a.rank_order !== undefined ? Number(a.rank_order) : 999;
+        const rB = b.rank_order !== null && b.rank_order !== undefined ? Number(b.rank_order) : 999;
+        return rA - rB;
+      });
       const top = sorted[0] ?? null;
+
+      let visibleStats = DEFAULT_VISIBLE_STATS;
+      if (profile.visible_stats && Array.isArray(profile.visible_stats)) {
+        visibleStats = profile.visible_stats;
+      } else {
+        const savedLocal = localStorage.getItem(`profile_visible_stats_${profile.user_id}`);
+        if (savedLocal) {
+          try { visibleStats = JSON.parse(savedLocal); } catch {}
+        }
+      }
 
       return {
         userId: profile.user_id,
@@ -143,6 +213,7 @@ export async function getLeaderboardData(): Promise<LeaderboardEntry[]> {
         createdAt: profile.created_at,
         albumCount,
         avgRating,
+        visibleStats,
         topAlbum: top
           ? ({
               Album: top.album,
@@ -152,6 +223,8 @@ export async function getLeaderboardData(): Promise<LeaderboardEntry[]> {
               'Release Year': Number(top.release_year ?? 0),
               Length: '',
               CoverArt: top.cover_art ?? '',
+              RankOrder: top.rank_order !== null && top.rank_order !== undefined ? Number(top.rank_order) : undefined,
+              IsHidden: top.is_hidden ?? false,
             } as AlbumEntry)
           : null,
         topAlbumCover: top?.cover_art ?? '',
@@ -165,20 +238,27 @@ export async function getLeaderboardData(): Promise<LeaderboardEntry[]> {
 
 /**
  * Fetch albums for a specific user (for the profile modal).
+ * If isSelf is false, hidden albums are excluded.
  */
 export async function getUserAlbumsForProfile(
-  userId: string
+  userId: string,
+  includeHidden = false
 ): Promise<AlbumEntry[]> {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('user_albums')
       .select('*')
-      .eq('user_id', userId)
-      .order('rating', { ascending: false });
+      .eq('user_id', userId);
+
+    if (!includeHidden) {
+      query = query.or('is_hidden.eq.false,is_hidden.is.null');
+    }
+
+    const { data, error } = await query;
 
     if (error || !data) return [];
 
-    return data.map((item: any) => ({
+    const parsed: AlbumEntry[] = data.map((item: any) => ({
       Album: item.album,
       Artist: item.artist,
       Rating: Number(item.rating),
@@ -187,7 +267,17 @@ export async function getUserAlbumsForProfile(
       Length: item.length ?? '',
       CoverArt: item.cover_art ?? '',
       AppleMusicLink: item.apple_music_link ?? '',
+      RankOrder: item.rank_order !== undefined && item.rank_order !== null ? Number(item.rank_order) : undefined,
+      IsHidden: item.is_hidden ?? false,
     }));
+
+    // Sort by rating desc, then rank_order asc (tie breaker)
+    parsed.sort((a, b) => {
+      if (b.Rating !== a.Rating) return b.Rating - a.Rating;
+      return (a.RankOrder ?? 999) - (b.RankOrder ?? 999);
+    });
+
+    return parsed;
   } catch {
     return [];
   }
@@ -203,3 +293,4 @@ export function validateNickname(nickname: string): string | null {
     return 'Only letters, numbers, spaces, dots, hyphens, and underscores are allowed.';
   return null;
 }
+

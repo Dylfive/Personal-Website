@@ -9,4 +9,7 @@ export interface AlbumEntry {
   AppleMusicLink?: string;
   TrackCount?: number;
   ExactReleaseDate?: string;
+  RankOrder?: number;
+  IsHidden?: boolean;
 }
+
