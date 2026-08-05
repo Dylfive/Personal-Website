@@ -9,9 +9,10 @@ interface ReviewScreenProps {
   onBack: () => void;
   isSubmitting: boolean;
   backLabel?: string;
+  isEditMode?: boolean;
 }
 
-export default function ReviewScreen({ draft, onSave, onBack, isSubmitting, backLabel = 'Edit Search' }: ReviewScreenProps) {
+export default function ReviewScreen({ draft, onSave, onBack, isSubmitting, backLabel = 'Edit Search', isEditMode = false }: ReviewScreenProps) {
   const [editedDraft, setEditedDraft] = useState<AlbumEntry>(draft);
   const [showImagePicker, setShowImagePicker] = useState(false);
   const [isSearchingGoogle, setIsSearchingGoogle] = useState(false);
@@ -211,36 +212,23 @@ export default function ReviewScreen({ draft, onSave, onBack, isSubmitting, back
           />
         </div>
 
-        {/* Tiebreaker / Rank Priority */}
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-white/70">
-            Tiebreaker Priority <span className="text-xs text-white/40 font-normal">(for same ratings)</span>
-          </label>
-          <input
-            type="number"
-            min="1"
-            max="999"
-            value={editedDraft.RankOrder ?? ''}
-            onChange={(e) => handleChange('RankOrder', e.target.value ? parseInt(e.target.value) : (undefined as any))}
-            placeholder="e.g. 1 (1st best 10/10), 2 (2nd best)..."
-            className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-accent-amber text-white font-mono text-sm"
-          />
-        </div>
-
-        {/* Hide from Public Profile toggle */}
-        <div className="space-y-2 flex flex-col justify-end">
-          <label className="flex items-center gap-3 cursor-pointer py-2.5 px-4 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">
+        {/* Tiebreaker / Rank Priority (Edit Mode Only) */}
+        {isEditMode && (
+          <div className="space-y-2 col-span-1 sm:col-span-2">
+            <label className="block text-sm font-medium text-white/70">
+              Tiebreaker Priority <span className="text-xs text-white/40 font-normal">(for albums with same rating, e.g. 1 for your #1 10/10, 2 for #2)</span>
+            </label>
             <input
-              type="checkbox"
-              checked={editedDraft.IsHidden ?? false}
-              onChange={(e) => handleChange('IsHidden', e.target.checked as any)}
-              className="w-4 h-4 accent-neon-purple rounded cursor-pointer"
+              type="number"
+              min="1"
+              max="999"
+              value={editedDraft.RankOrder ?? ''}
+              onChange={(e) => handleChange('RankOrder', e.target.value ? parseInt(e.target.value) : (undefined as any))}
+              placeholder="e.g. 1 (1st best), 2 (2nd best)..."
+              className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-accent-amber text-white font-mono text-sm"
             />
-            <span className="text-sm font-medium text-white/80 select-none">
-              Hide from Leaderboard & Profile
-            </span>
-          </label>
-        </div>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4 mt-8">

@@ -287,6 +287,7 @@ export default function AlbumIntakeForm({
                 onBack={isEditMode ? () => onEditComplete?.() : () => setFormState('IDLE')}
                 isSubmitting={formState === 'SUBMITTING'}
                 backLabel={isEditMode ? 'Cancel' : 'Edit Search'}
+                isEditMode={isEditMode}
               />
             </motion.div>
           )}

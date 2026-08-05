@@ -502,14 +502,7 @@ const AlbumList = ({ albums, searchQuery, setSearchQuery, onEditAlbum }: { album
 
                   <div className="flex-1 min-w-0 flex flex-col justify-center">
                     <h4 className="text-base sm:text-lg font-bold text-white truncate">{String(album.Album)}</h4>
-                    <p className="text-xs sm:text-sm text-[#bc13fe] truncate flex items-center gap-2">
-                      {album.Artist}
-                      {album.IsHidden && (
-                        <span className="text-[9px] font-mono font-bold text-red-400 bg-red-500/10 px-1.5 py-0.2 rounded border border-red-500/20">
-                          Hidden
-                        </span>
-                      )}
-                    </p>
+                    <p className="text-xs sm:text-sm text-[#bc13fe] truncate">{album.Artist}</p>
                     
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5">
                       <div className="flex items-center gap-1">
