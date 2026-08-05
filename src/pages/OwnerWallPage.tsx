@@ -1,15 +1,12 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ChevronRight, ChevronLeft, Music, ExternalLink, Star, Calendar, Clock,
+  ChevronRight, Music, ExternalLink, Star, Calendar, Clock,
   Trophy, Disc3, Search, ArrowUpDown, BarChart2,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { AlbumEntry } from '../types/album';
 import rawAlbumData from '../data/Album-Data.json';
-
-// ─── Owner identity ───────────────────────────────────────────────────────────
-const OWNER_EMAIL = 'dyl.gauvin@gmail.com';
 
 // ─── Copied helpers (same as MusicDashboard — kept local to avoid coupling) ───
 
