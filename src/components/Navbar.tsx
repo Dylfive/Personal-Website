@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, LogOut, Disc3, Music } from 'lucide-react';
+import { Menu, X, LogOut, Disc3, Music, Users, LayoutGrid } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const Navbar = () => {
@@ -9,7 +9,7 @@ const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, signOut } = useAuth();
+  const { user, signOut, nickname } = useAuth();
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 24);
@@ -25,7 +25,10 @@ const Navbar = () => {
     navigate('/login');
   };
 
-  const avatarLetter = user?.email?.[0]?.toUpperCase() ?? '?';
+  const avatarLetter = nickname
+    ? nickname[0].toUpperCase()
+    : user?.email?.[0]?.toUpperCase() ?? '?';
+  const displayName = nickname ?? user?.email?.split('@')[0] ?? '';
   const isLoginPage = location.pathname === '/login' || location.pathname === '/';
 
   return (
@@ -45,28 +48,28 @@ const Navbar = () => {
           <div className="w-9 h-9 rounded-xl flex items-center justify-center border border-accent-amber/30 bg-accent-amber/10 group-hover:bg-accent-amber/20 group-hover:border-accent-amber/50 transition-all duration-300">
             <Disc3 className="w-5 h-5 text-accent-amber" />
           </div>
-          <span
-            className="text-lg font-serif font-bold tracking-tight text-white group-hover:text-accent-amber transition-colors duration-300"
-          >
+          <span className="text-lg font-serif font-bold tracking-tight text-white group-hover:text-accent-amber transition-colors duration-300">
             AlbumWall
           </span>
         </Link>
 
         {/* ── Desktop Nav ── */}
-        <div className="hidden md:flex items-center gap-6">
-          {/* Resume — always visible */}
+        <div className="hidden md:flex items-center gap-5">
+
+          {/* Dylan's Wall — always visible to everyone */}
           <Link
-            to="/resume"
-            className={`text-sm font-medium transition-colors hover:text-white ${
-              location.pathname === '/resume' ? 'text-white' : 'text-white/50'
+            to="/wall"
+            className={`flex items-center gap-1.5 text-sm font-medium transition-colors hover:text-white ${
+              location.pathname === '/wall' ? 'text-accent-amber' : 'text-white/50'
             }`}
           >
-            Resume
+            <LayoutGrid className="w-4 h-4" />
+            Dylan's Wall
           </Link>
 
           {user ? (
             <div className="flex items-center gap-4 pl-4 border-l border-white/10">
-              {/* My Collection link */}
+              {/* My Collection */}
               <Link
                 to="/intake"
                 className={`flex items-center gap-1.5 text-sm font-medium transition-colors hover:text-white ${
@@ -77,10 +80,21 @@ const Navbar = () => {
                 My Collection
               </Link>
 
+              {/* Other Walls (leaderboard) */}
+              <Link
+                to="/leaderboard"
+                className={`flex items-center gap-1.5 text-sm font-medium transition-colors hover:text-white ${
+                  location.pathname === '/leaderboard' ? 'text-accent-amber' : 'text-white/50'
+                }`}
+              >
+                <Users className="w-4 h-4" />
+                Other Walls
+              </Link>
+
               {/* User chip */}
               <div className="flex items-center gap-2">
                 <div
-                  title={user.email}
+                  title={displayName}
                   className="w-8 h-8 rounded-full border border-accent-amber/40 bg-accent-amber/15 flex items-center justify-center text-accent-amber text-sm font-bold"
                 >
                   {avatarLetter}
@@ -125,11 +139,16 @@ const Navbar = () => {
             transition={{ duration: 0.2 }}
             className="md:hidden absolute top-full left-0 right-0 bg-background/95 backdrop-blur-xl border-b border-white/[0.06] p-6 flex flex-col gap-5"
           >
+            {/* Dylan's Wall — always visible */}
             <Link
-              to="/resume"
-              className="text-base font-medium text-white/70 hover:text-white transition-colors"
+              to="/wall"
+              className={`flex items-center gap-2 text-base font-medium transition-colors ${
+                location.pathname === '/wall'
+                  ? 'text-accent-amber'
+                  : 'text-white/70 hover:text-accent-amber'
+              }`}
             >
-              Resume
+              <LayoutGrid className="w-5 h-5" /> Dylan's Wall
             </Link>
 
             {user ? (
@@ -140,8 +159,16 @@ const Navbar = () => {
                 >
                   <Music className="w-5 h-5" /> My Collection
                 </Link>
+                <Link
+                  to="/leaderboard"
+                  className="flex items-center gap-2 text-base font-medium text-white/70 hover:text-accent-amber transition-colors"
+                >
+                  <Users className="w-5 h-5" /> Other Walls
+                </Link>
                 <div className="pt-4 border-t border-white/[0.06] flex items-center justify-between">
-                  <span className="text-white/40 text-sm truncate max-w-[200px]">{user.email}</span>
+                  <span className="text-white/40 text-sm truncate max-w-[200px]">
+                    {nickname ? `@${nickname}` : user.email}
+                  </span>
                   <button
                     onClick={handleSignOut}
                     className="flex items-center gap-1.5 text-red-400 text-sm font-medium hover:text-red-300 transition-colors"
