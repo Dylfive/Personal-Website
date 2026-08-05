@@ -28,35 +28,61 @@ export default function ReviewScreen({ draft, onSave, onBack, isSubmitting, back
 
   const handleItunesIsShit = async () => {
     setShowImagePicker(true);
-    
-    const apiKey = import.meta.env.VITE_GOOGLE_SEARCH_API_KEY;
-    const cx = import.meta.env.VITE_GOOGLE_SEARCH_CX;
-    const query = encodeURIComponent(`${editedDraft.Album} ${editedDraft.Artist} album cover`);
-
-    if (!apiKey || !cx) {
-      // Option 1 Fallback
-      window.open(`https://www.google.com/search?tbm=isch&q=${query}`, '_blank');
-      setGoogleSearchError('No Google API keys found. Opened a manual search tab. Paste the image URL below.');
-      return;
-    }
-
     setIsSearchingGoogle(true);
     setGoogleSearchError(null);
+
+    const apiKey = import.meta.env.VITE_GOOGLE_SEARCH_API_KEY;
+    const cx = import.meta.env.VITE_GOOGLE_SEARCH_CX;
+    const queryStr = `${editedDraft.Album} ${editedDraft.Artist} album cover`;
+    const query = encodeURIComponent(queryStr);
+
+    // 1. Try Google Custom Search API if configured
+    if (apiKey && cx) {
+      try {
+        const res = await fetch(
+          `https://www.googleapis.com/customsearch/v1?q=${query}&cx=${cx}&key=${apiKey}&searchType=image&num=6`
+        );
+        const data = await res.json();
+        if (data.items && data.items.length > 0) {
+          const links = data.items.map((item: any) => item.link);
+          setGoogleImages(links);
+          // Automatically assign the first image from Google!
+          handleChange('CoverArt', links[0]);
+          setIsSearchingGoogle(false);
+          return;
+        }
+      } catch (err) {
+        console.warn('Google Custom Search API error:', err);
+      }
+    }
+
+    // 2. Fallback to MusicBrainz Cover Art Archive (free, open API, no key required)
     try {
-      const res = await fetch(`https://www.googleapis.com/customsearch/v1?q=${query}&cx=${cx}&key=${apiKey}&searchType=image&num=4`);
-      const data = await res.json();
-      if (data.items && data.items.length > 0) {
-        setGoogleImages(data.items.map((item: any) => item.link));
-      } else {
-        setGoogleSearchError('No results found from Google Custom Search.');
-        window.open(`https://www.google.com/search?tbm=isch&q=${query}`, '_blank');
+      const mbRes = await fetch(
+        `https://musicbrainz.org/ws/2/release/?query=release:"${encodeURIComponent(String(editedDraft.Album))}" AND artist:"${encodeURIComponent(editedDraft.Artist)}"&fmt=json`
+      );
+      if (mbRes.ok) {
+        const mbData = await mbRes.json();
+        const release = mbData.releases?.[0];
+        if (release?.id) {
+          const coverUrl = `https://coverartarchive.org/release/${release.id}/front-500`;
+          const imgCheck = await fetch(coverUrl, { method: 'HEAD' });
+          if (imgCheck.ok) {
+            handleChange('CoverArt', coverUrl);
+            setGoogleImages([coverUrl]);
+            setIsSearchingGoogle(false);
+            return;
+          }
+        }
       }
     } catch (err) {
-      setGoogleSearchError('Failed to fetch from Google Custom Search. Opened a manual search tab.');
-      window.open(`https://www.google.com/search?tbm=isch&q=${query}`, '_blank');
-    } finally {
-      setIsSearchingGoogle(false);
+      console.warn('MusicBrainz fetch error:', err);
     }
+
+    // 3. Fallback to opening Google Image Search tab for manual selection
+    setIsSearchingGoogle(false);
+    setGoogleSearchError('Auto-fetch failed. Opened Google Search — copy & paste an image URL below.');
+    window.open(`https://www.google.com/search?tbm=isch&q=${query}`, '_blank');
   };
 
   return (
