@@ -1,9 +1,15 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, AlertCircle, CheckCircle2, ArrowRight, AlertTriangle } from 'lucide-react';
+import { Sparkles, AlertCircle, CheckCircle2, ArrowRight, AlertTriangle, Pencil } from 'lucide-react';
 import RatingInput from './RatingInput';
 import ReviewScreen from './ReviewScreen';
-import { appendAlbumToGitHub, getUserAlbums, addUserAlbum } from '../../lib/albumStore';
+import {
+  appendAlbumToGitHub,
+  getUserAlbums,
+  addUserAlbum,
+  updateUserAlbum,
+  updateAlbumOnGitHub,
+} from '../../lib/albumStore';
 import { enrichAlbumData } from '../../lib/aiEnrichment';
 import type { AlbumEntry } from '../../types/album';
 import rawAlbumData from '../../data/Album-Data.json';
@@ -13,25 +19,38 @@ type FormState = 'IDLE' | 'ENRICHING' | 'REVIEW' | 'SUBMITTING' | 'SUCCESS';
 
 interface AlbumIntakeFormProps {
   onViewCollection?: () => void;
+  /** When set, the form opens pre-filled in edit mode for this album. */
+  editAlbum?: AlbumEntry;
+  /** Called after a successful edit save (e.g. to navigate back to the collection). */
+  onEditComplete?: () => void;
 }
 
-export default function AlbumIntakeForm({ onViewCollection }: AlbumIntakeFormProps = {}) {
-  const [formState, setFormState] = useState<FormState>('IDLE');
-  
-  // Initial inputs
+export default function AlbumIntakeForm({
+  onViewCollection,
+  editAlbum,
+  onEditComplete,
+}: AlbumIntakeFormProps = {}) {
+  const isEditMode = !!editAlbum;
+  // Lock in the original name at mount time so we can find & delete it on save.
+  const originalAlbumName = useRef<string>(editAlbum ? String(editAlbum.Album) : '');
+
+  const [formState, setFormState] = useState<FormState>(isEditMode ? 'REVIEW' : 'IDLE');
+
+  // Initial inputs (used in add mode only)
   const [albumName, setAlbumName] = useState('');
   const [artistName, setArtistName] = useState('');
   const [rating, setRating] = useState('');
-  
-  // AI Draft
-  const [draft, setDraft] = useState<AlbumEntry | null>(null);
-  
+
+  // Draft (pre-populated with editAlbum in edit mode)
+  const [draft, setDraft] = useState<AlbumEntry | null>(editAlbum ?? null);
+
   const [error, setError] = useState<string | null>(null);
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
   const [bypassDuplicate, setBypassDuplicate] = useState(false);
 
   const { user } = useAuth();
 
+  // ── Add-mode: enrich & duplicate check ─────────────────────────────────────
   const handleEnrich = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -56,17 +75,20 @@ export default function AlbumIntakeForm({ onViewCollection }: AlbumIntakeFormPro
           (a) => String(a.Album).toLowerCase().trim() === albumName.toLowerCase().trim()
         );
         if (existing) {
-          setDuplicateWarning(`"${existing.Album}" by ${existing.Artist} is already in your list with a rating of ${existing.Rating}/10. Are you sure you want to add it again?`);
+          setDuplicateWarning(
+            `"${existing.Album}" by ${existing.Artist} is already in your list with a rating of ${existing.Rating}/10. Are you sure you want to add it again?`
+          );
           setFormState('IDLE');
           return;
         }
-      } catch (err) {
-        console.warn('Failed to fetch user data for duplicate check', err);
+      } catch {
         const existing = (rawAlbumData as AlbumEntry[]).find(
           (a) => String(a.Album).toLowerCase().trim() === albumName.toLowerCase().trim()
         );
         if (existing) {
-          setDuplicateWarning(`"${existing.Album}" by ${existing.Artist} is already in your list with a rating of ${existing.Rating}/10. Are you sure you want to add it again?`);
+          setDuplicateWarning(
+            `"${existing.Album}" by ${existing.Artist} is already in your list with a rating of ${existing.Rating}/10. Are you sure you want to add it again?`
+          );
           setFormState('IDLE');
           return;
         }
@@ -86,39 +108,46 @@ export default function AlbumIntakeForm({ onViewCollection }: AlbumIntakeFormPro
     }
   };
 
+  // ── Save (add or edit) ──────────────────────────────────────────────────────
   const handleSave = async (finalEntry: AlbumEntry) => {
     setFormState('SUBMITTING');
     setError(null);
     try {
       if (user?.id) {
-        await addUserAlbum(user.id, finalEntry);
+        if (isEditMode) {
+          await updateUserAlbum(user.id, originalAlbumName.current, finalEntry);
+        } else {
+          await addUserAlbum(user.id, finalEntry);
+        }
       } else {
-        await appendAlbumToGitHub(finalEntry);
+        if (isEditMode) {
+          await updateAlbumOnGitHub(originalAlbumName.current, finalEntry);
+        } else {
+          await appendAlbumToGitHub(finalEntry);
+        }
       }
-      
-      // Clear
-      setAlbumName('');
-      setArtistName('');
-      setRating('');
-      setDraft(null);
+
       setFormState('SUCCESS');
+
+      // In edit mode, auto-navigate back to collection after a brief flash
+      if (isEditMode) {
+        setTimeout(() => onEditComplete?.(), 1000);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred while saving.');
-      setFormState('REVIEW'); // Go back to review so they don't lose data
+      setFormState('REVIEW');
     }
   };
 
+  // ── Reset (add-mode only) ───────────────────────────────────────────────────
   const handleReset = () => {
     setFormState('IDLE');
-    setSuccessMessageRead(); // Or just let them start over
     setAlbumName('');
     setArtistName('');
     setRating('');
     setDraft(null);
     setError(null);
   };
-
-  const setSuccessMessageRead = () => {}; // Dummy
 
   return (
     <div className="w-full max-w-2xl mx-auto">
@@ -127,8 +156,8 @@ export default function AlbumIntakeForm({ onViewCollection }: AlbumIntakeFormPro
         className="glass-panel p-6 sm:p-8 rounded-3xl neon-border overflow-hidden relative"
       >
         <AnimatePresence mode="wait">
-          
-          {/* IDLE STATE */}
+
+          {/* ── IDLE (add mode) ── */}
           {formState === 'IDLE' && (
             <motion.div
               key="idle"
@@ -153,7 +182,6 @@ export default function AlbumIntakeForm({ onViewCollection }: AlbumIntakeFormPro
                       placeholder="e.g. The Dark Side of the Moon"
                     />
                   </div>
-
                   <div>
                     <label className="block text-sm font-medium text-white/70 mb-2">Artist Name</label>
                     <input
@@ -203,7 +231,7 @@ export default function AlbumIntakeForm({ onViewCollection }: AlbumIntakeFormPro
             </motion.div>
           )}
 
-          {/* ENRICHING STATE */}
+          {/* ── ENRICHING ── */}
           {formState === 'ENRICHING' && (
             <motion.div
               key="enriching"
@@ -213,16 +241,8 @@ export default function AlbumIntakeForm({ onViewCollection }: AlbumIntakeFormPro
               className="flex flex-col items-center justify-center py-20 text-center space-y-6"
             >
               <div className="relative w-20 h-20">
-                <motion.div 
-                  animate={{ rotate: 360 }} 
-                  transition={{ repeat: Infinity, ease: "linear", duration: 3 }} 
-                  className="absolute inset-0 rounded-full border-t-2 border-neon-purple border-opacity-50"
-                />
-                <motion.div 
-                  animate={{ rotate: -360 }} 
-                  transition={{ repeat: Infinity, ease: "linear", duration: 2 }} 
-                  className="absolute inset-2 rounded-full border-b-2 border-neon-blue border-opacity-50"
-                />
+                <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, ease: 'linear', duration: 3 }} className="absolute inset-0 rounded-full border-t-2 border-neon-purple border-opacity-50" />
+                <motion.div animate={{ rotate: -360 }} transition={{ repeat: Infinity, ease: 'linear', duration: 2 }} className="absolute inset-2 rounded-full border-b-2 border-neon-blue border-opacity-50" />
                 <div className="absolute inset-0 flex items-center justify-center">
                   <Sparkles className="w-6 h-6 text-neon-purple animate-pulse" />
                 </div>
@@ -236,16 +256,24 @@ export default function AlbumIntakeForm({ onViewCollection }: AlbumIntakeFormPro
             </motion.div>
           )}
 
-          {/* REVIEW & SUBMITTING STATE */}
+          {/* ── REVIEW & SUBMITTING ── */}
           {(formState === 'REVIEW' || formState === 'SUBMITTING') && draft && (
             <motion.div key="review">
               <div className="mb-8">
                 <h2 className="text-2xl font-bold mb-2 flex items-center gap-2">
-                  <Sparkles className="text-neon-purple w-6 h-6" /> Review Draft
+                  {isEditMode ? (
+                    <><Pencil className="text-accent-amber w-6 h-6" /> Edit Album</>
+                  ) : (
+                    <><Sparkles className="text-neon-purple w-6 h-6" /> Review Draft</>
+                  )}
                 </h2>
-                <p className="text-white/50 text-sm">Please verify the AI's research. Edit anything that looks wrong.</p>
+                <p className="text-white/50 text-sm">
+                  {isEditMode
+                    ? 'Modify any fields below, then save your changes.'
+                    : "Please verify the AI's research. Edit anything that looks wrong."}
+                </p>
               </div>
-              
+
               {error && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 p-4 mb-6 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
                   <AlertCircle className="w-5 h-5 shrink-0" />
@@ -253,16 +281,17 @@ export default function AlbumIntakeForm({ onViewCollection }: AlbumIntakeFormPro
                 </motion.div>
               )}
 
-              <ReviewScreen 
+              <ReviewScreen
                 draft={draft}
                 onSave={handleSave}
-                onBack={() => setFormState('IDLE')}
+                onBack={isEditMode ? () => onEditComplete?.() : () => setFormState('IDLE')}
                 isSubmitting={formState === 'SUBMITTING'}
+                backLabel={isEditMode ? 'Cancel' : 'Edit Search'}
               />
             </motion.div>
           )}
 
-          {/* SUCCESS STATE */}
+          {/* ── SUCCESS ── */}
           {formState === 'SUCCESS' && (
             <motion.div
               key="success"
@@ -273,26 +302,33 @@ export default function AlbumIntakeForm({ onViewCollection }: AlbumIntakeFormPro
               <div className="w-20 h-20 rounded-full bg-green-500/20 flex items-center justify-center mb-6">
                 <CheckCircle2 className="w-10 h-10 text-green-400" />
               </div>
-              <h3 className="text-2xl font-bold mb-2">Album Saved!</h3>
+              <h3 className="text-2xl font-bold mb-2">
+                {isEditMode ? 'Album Updated!' : 'Album Saved!'}
+              </h3>
               <p className="text-white/50 mb-8 max-w-sm">
-                Your album was successfully pushed to GitHub. The changes will be live shortly.
+                {isEditMode
+                  ? 'Your changes have been saved. Heading back to your collection…'
+                  : 'Your album was successfully pushed to GitHub. The changes will be live shortly.'}
               </p>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <button
-                  onClick={handleReset}
-                  className="px-6 py-3 rounded-full bg-white text-black font-bold hover:bg-white/90 transition-colors"
-                >
-                  Add Another Album
-                </button>
-                {onViewCollection && (
+
+              {!isEditMode && (
+                <div className="flex flex-col sm:flex-row gap-3">
                   <button
-                    onClick={onViewCollection}
-                    className="px-6 py-3 rounded-full bg-white/10 border border-white/20 text-white font-bold hover:bg-white/20 transition-colors"
+                    onClick={handleReset}
+                    className="px-6 py-3 rounded-full bg-white text-black font-bold hover:bg-white/90 transition-colors"
                   >
-                    View Collection 📊
+                    Add Another Album
                   </button>
-                )}
-              </div>
+                  {onViewCollection && (
+                    <button
+                      onClick={onViewCollection}
+                      className="px-6 py-3 rounded-full bg-white/10 border border-white/20 text-white font-bold hover:bg-white/20 transition-colors"
+                    >
+                      View Collection 📊
+                    </button>
+                  )}
+                </div>
+              )}
             </motion.div>
           )}
 

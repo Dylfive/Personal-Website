@@ -8,9 +8,10 @@ interface ReviewScreenProps {
   onSave: (finalEntry: AlbumEntry) => void;
   onBack: () => void;
   isSubmitting: boolean;
+  backLabel?: string;
 }
 
-export default function ReviewScreen({ draft, onSave, onBack, isSubmitting }: ReviewScreenProps) {
+export default function ReviewScreen({ draft, onSave, onBack, isSubmitting, backLabel = 'Edit Search' }: ReviewScreenProps) {
   const [editedDraft, setEditedDraft] = useState<AlbumEntry>(draft);
   const [showImagePicker, setShowImagePicker] = useState(false);
   const [isSearchingGoogle, setIsSearchingGoogle] = useState(false);
@@ -193,7 +194,7 @@ export default function ReviewScreen({ draft, onSave, onBack, isSubmitting }: Re
           className="flex-1 flex items-center justify-center gap-2 py-4 rounded-xl font-bold border border-white/20 text-white hover:bg-white/5 transition-all disabled:opacity-50"
         >
           <ArrowLeft className="w-5 h-5" />
-          Edit Search
+          {backLabel}
         </button>
         <button
           type="button"

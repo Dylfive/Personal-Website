@@ -127,6 +127,75 @@ export async function addUserAlbum(userId: string, newAlbum: AlbumEntry): Promis
   return updated;
 }
 
+export async function updateUserAlbum(
+  userId: string,
+  originalAlbumName: string,
+  updatedAlbum: AlbumEntry
+): Promise<AlbumEntry[]> {
+  const normalizedOriginal = originalAlbumName.toLowerCase().trim();
+  const normalizedNew = String(updatedAlbum.Album).toLowerCase().trim();
+
+  try {
+    // 1. Delete the original Supabase record
+    await supabase
+      .from('user_albums')
+      .delete()
+      .eq('user_id', userId)
+      .ilike('album', originalAlbumName.trim());
+
+    // 2. If the album name changed, also remove any conflicting record with the new name
+    if (normalizedNew !== normalizedOriginal) {
+      await supabase
+        .from('user_albums')
+        .delete()
+        .eq('user_id', userId)
+        .ilike('album', String(updatedAlbum.Album).trim());
+    }
+
+    // 3. Insert the updated record
+    const { error } = await supabase.from('user_albums').insert([
+      {
+        user_id: userId,
+        album: String(updatedAlbum.Album),
+        artist: updatedAlbum.Artist,
+        rating: updatedAlbum.Rating,
+        genre: updatedAlbum.Genre,
+        release_year: updatedAlbum['Release Year'],
+        length: updatedAlbum.Length,
+        cover_art: updatedAlbum.CoverArt ?? '',
+        apple_music_link: updatedAlbum.AppleMusicLink ?? '',
+        track_count: updatedAlbum.TrackCount ?? 0,
+        exact_release_date: updatedAlbum.ExactReleaseDate ?? '',
+      },
+    ]);
+    if (error) console.warn('Supabase update insert warning:', error.message);
+  } catch (err) {
+    console.warn('Supabase updateUserAlbum exception:', err);
+  }
+
+  // 4. Rebuild local cache: remove original + any name-conflict, prepend updated
+  const current = await getUserAlbums(userId);
+  const filtered = current.filter(
+    (a) =>
+      String(a.Album).toLowerCase().trim() !== normalizedOriginal &&
+      String(a.Album).toLowerCase().trim() !== normalizedNew
+  );
+  const updated = [updatedAlbum, ...filtered];
+  localStorage.setItem(`albums_user_${userId}`, JSON.stringify(updated));
+
+  // 5. GitHub sync — owner only
+  const { data: { user: currentUser } } = await supabase.auth.getUser();
+  if (currentUser?.email === OWNER_EMAIL) {
+    try {
+      await callGitHubAPI({ action: 'update', album: updatedAlbum, originalName: originalAlbumName });
+    } catch (err) {
+      console.warn('GitHub Edge Function sync notice:', err);
+    }
+  }
+
+  return updated;
+}
+
 export async function seedUserAlbums(userId: string): Promise<AlbumEntry[]> {
   const seedData = rawAlbumData as AlbumEntry[];
   localStorage.setItem(`albums_user_${userId}`, JSON.stringify(seedData));

@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, ChevronLeft, Music, ExternalLink, Star, Calendar, Clock, Trophy, Disc3, Search, ArrowUpDown, BarChart2, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Music, ExternalLink, Star, Calendar, Clock, Trophy, Disc3, Search, ArrowUpDown, BarChart2, Plus, Sparkles, Trash2, Pencil } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserAlbums, seedUserAlbums, clearUserAlbums } from '../lib/albumStore';
 
@@ -387,7 +387,7 @@ const RatingsChart = ({ albums, onRatingClick }: { albums: Album[], onRatingClic
 
 
 // ─── Interactive Album List ───────────────────────────────────────────────────
-const AlbumList = ({ albums, searchQuery, setSearchQuery }: { albums: Album[], searchQuery: string, setSearchQuery: (s: string) => void }) => {
+const AlbumList = ({ albums, searchQuery, setSearchQuery, onEditAlbum }: { albums: Album[], searchQuery: string, setSearchQuery: (s: string) => void, onEditAlbum?: (album: Album) => void }) => {
   const [sortBy, setSortBy] = useState<SortOption>('rating');
 
   const filteredAndSorted = useMemo(() => {
@@ -529,6 +529,17 @@ const AlbumList = ({ albums, searchQuery, setSearchQuery }: { albums: Album[], s
                       <span className="hidden sm:inline text-xs font-bold">Listen</span>
                     </a>
                   )}
+
+                  {/* Edit button */}
+                  {onEditAlbum && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onEditAlbum(album); }}
+                      title="Edit album"
+                      className="flex-shrink-0 p-2 rounded-full border border-white/10 text-white/30 hover:text-accent-amber hover:border-accent-amber/40 hover:bg-accent-amber/10 opacity-0 group-hover:opacity-100 transition-all duration-200"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                  )}
                 </motion.div>
               );
             })
@@ -546,10 +557,11 @@ const AlbumList = ({ albums, searchQuery, setSearchQuery }: { albums: Album[], s
 
 interface MusicDashboardProps {
   onAddAlbumClick?: () => void;
+  onEditAlbum?: (album: Album) => void;
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-const MusicDashboard: React.FC<MusicDashboardProps> = ({ onAddAlbumClick }) => {
+const MusicDashboard: React.FC<MusicDashboardProps> = ({ onAddAlbumClick, onEditAlbum }) => {
   const { user } = useAuth();
   const [albums, setAlbums] = useState<Album[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -736,7 +748,7 @@ const MusicDashboard: React.FC<MusicDashboardProps> = ({ onAddAlbumClick }) => {
 
         {/* ── BIG: Interactive Album List ── */}
         <div className="lg:col-span-7 flex flex-col h-[950px]">
-          <AlbumList albums={baseSortedAlbums} searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
+          <AlbumList albums={baseSortedAlbums} searchQuery={searchQuery} setSearchQuery={setSearchQuery} onEditAlbum={onEditAlbum} />
         </div>
 
         {/* ── RIGHT COLUMN ── */}
