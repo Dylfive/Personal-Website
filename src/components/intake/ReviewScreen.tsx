@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Save, ArrowLeft, Disc3, Calendar, Clock, Music, AlertTriangle, Loader2, Frown, Link as LinkIcon } from 'lucide-react';
+import { Save, ArrowLeft, Disc3, Calendar, Clock, Music, AlertTriangle, Loader2, Frown, Link as LinkIcon, AlertCircle, Star } from 'lucide-react';
 import type { AlbumEntry } from '../../types/album';
 
 interface ReviewScreenProps {
@@ -12,19 +12,85 @@ interface ReviewScreenProps {
   isEditMode?: boolean;
 }
 
+export function normalizeLengthToHMS(length: string): string {
+  if (!length) return '';
+  
+  const clean = length.trim();
+  if (!clean) return '';
+  
+  const parts = clean.split(':').map(Number);
+  
+  // If it's MM:SS:00 (Google Sheets format where first part > 3 and 3 parts total)
+  if (parts.length === 3 && parts[0] > 3) {
+    const totalMinutes = parts[0];
+    const seconds = parts[1];
+    const hrs = Math.floor(totalMinutes / 60);
+    const mins = totalMinutes % 60;
+    return [
+      hrs.toString().padStart(2, '0'),
+      mins.toString().padStart(2, '0'),
+      seconds.toString().padStart(2, '0')
+    ].join(':');
+  }
+  
+  // If it's already HH:MM:SS
+  if (parts.length === 3) {
+    return parts.map(p => (isNaN(p) ? 0 : p).toString().padStart(2, '0')).join(':');
+  }
+  
+  // If it's MM:SS
+  if (parts.length === 2) {
+    const mins = parts[0];
+    const secs = parts[1];
+    const hrs = Math.floor(mins / 60);
+    const m = mins % 60;
+    return [
+      hrs.toString().padStart(2, '0'),
+      m.toString().padStart(2, '0'),
+      secs.toString().padStart(2, '0')
+    ].join(':');
+  }
+  
+  return clean;
+}
+
 export default function ReviewScreen({ draft, onSave, onBack, isSubmitting, backLabel = 'Edit Search', isEditMode = false }: ReviewScreenProps) {
   const [editedDraft, setEditedDraft] = useState<AlbumEntry>(draft);
+  const [ratingInput, setRatingInput] = useState(draft.Rating?.toString() || '');
+  const [error, setError] = useState<string | null>(null);
   const [showImagePicker, setShowImagePicker] = useState(false);
   const [isSearchingGoogle, setIsSearchingGoogle] = useState(false);
   const [googleImages, setGoogleImages] = useState<string[]>([]);
   const [googleSearchError, setGoogleSearchError] = useState<string | null>(null);
 
   useEffect(() => {
-    setEditedDraft(draft);
+    setEditedDraft({
+      ...draft,
+      Length: normalizeLengthToHMS(draft.Length)
+    });
+    setRatingInput(draft.Rating?.toString() || '');
+    setError(null);
   }, [draft]);
 
   const handleChange = (field: keyof AlbumEntry, value: string | number) => {
     setEditedDraft(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleSaveClick = () => {
+    setError(null);
+    const r = parseFloat(ratingInput);
+    if (isNaN(r) || r < 0 || r > 10) {
+      setError('Rating must be a number between 0.0 and 10.0');
+      return;
+    }
+    
+    // Normalize length to HMS format before saving
+    const finalDraft = {
+      ...editedDraft,
+      Rating: r,
+      Length: normalizeLengthToHMS(editedDraft.Length)
+    };
+    onSave(finalDraft);
   };
 
   const handleItunesIsShit = async () => {
@@ -203,11 +269,35 @@ export default function ReviewScreen({ draft, onSave, onBack, isSubmitting, back
         </div>
         
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-white/70 mb-2">Track Count</label>
+          <label className="flex items-center gap-2 text-sm font-medium text-white/70">
+            <Music className="w-4 h-4" /> Track Count
+          </label>
           <input
             type="number"
             value={editedDraft.TrackCount}
             onChange={(e) => handleChange('TrackCount', parseInt(e.target.value) || 0)}
+            className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-neon-blue text-white font-mono"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 text-sm font-medium text-white/70">
+            <Star className="w-4 h-4 text-accent-amber fill-accent-amber" /> Rating (0.0 - 10.0)
+          </label>
+          <input
+            type="number"
+            min="0"
+            max="10"
+            step="0.1"
+            value={ratingInput}
+            onChange={(e) => {
+              setRatingInput(e.target.value);
+              const val = parseFloat(e.target.value);
+              if (!isNaN(val)) {
+                handleChange('Rating', val);
+              }
+            }}
+            placeholder="0.0"
             className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-neon-blue text-white font-mono"
           />
         </div>
@@ -231,6 +321,13 @@ export default function ReviewScreen({ draft, onSave, onBack, isSubmitting, back
         )}
       </div>
 
+      {error && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+          <AlertCircle className="w-5 h-5 shrink-0" />
+          <p>{error}</p>
+        </motion.div>
+      )}
+
       <div className="flex flex-col sm:flex-row gap-4 mt-8">
         <button
           type="button"
@@ -243,7 +340,7 @@ export default function ReviewScreen({ draft, onSave, onBack, isSubmitting, back
         </button>
         <button
           type="button"
-          onClick={() => onSave(editedDraft)}
+          onClick={handleSaveClick}
           disabled={isSubmitting}
           className="flex-[2] flex items-center justify-center gap-2 py-4 rounded-xl font-bold text-lg bg-white text-black hover:bg-white/90 transition-all disabled:opacity-50"
         >
