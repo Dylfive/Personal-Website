@@ -7,6 +7,7 @@ import IntakePage from './pages/IntakePage';
 import Login from './pages/Login';
 import LeaderboardPage from './pages/LeaderboardPage';
 import OwnerWallPage from './pages/OwnerWallPage';
+import ExperimentPage from './pages/ExperimentPage';
 import Resume from './pages/Resume';
 import { useAuth } from './contexts/AuthContext';
 
@@ -69,6 +70,16 @@ function AppShell() {
             <AuthGuard>
               <main className="pt-20">
                 <LeaderboardPage />
+              </main>
+            </AuthGuard>
+          }
+        />
+        <Route
+          path="/experiment"
+          element={
+            <AuthGuard>
+              <main className="pt-20">
+                <ExperimentPage />
               </main>
             </AuthGuard>
           }

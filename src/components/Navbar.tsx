@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, LogOut, Disc3, Music, Users, LayoutGrid } from 'lucide-react';
+import { Menu, X, LogOut, Disc3, Music, Users, LayoutGrid, FlaskConical } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const Navbar = () => {
@@ -78,6 +78,17 @@ const Navbar = () => {
               >
                 <Music className="w-4 h-4" />
                 My Collection
+              </Link>
+
+              {/* Experiment */}
+              <Link
+                to="/experiment"
+                className={`flex items-center gap-1.5 text-sm font-medium transition-colors hover:text-white ${
+                  location.pathname === '/experiment' ? 'text-accent-amber' : 'text-white/50'
+                }`}
+              >
+                <FlaskConical className="w-4 h-4" />
+                Experiment
               </Link>
 
               {/* Other Walls (leaderboard) */}
@@ -158,6 +169,16 @@ const Navbar = () => {
                   className="flex items-center gap-2 text-base font-medium text-white/70 hover:text-accent-amber transition-colors"
                 >
                   <Music className="w-5 h-5" /> My Collection
+                </Link>
+                <Link
+                  to="/experiment"
+                  className={`flex items-center gap-2 text-base font-medium transition-colors ${
+                    location.pathname === '/experiment'
+                      ? 'text-accent-amber'
+                      : 'text-white/70 hover:text-accent-amber'
+                  }`}
+                >
+                  <FlaskConical className="w-5 h-5" /> Experiment
                 </Link>
                 <Link
                   to="/leaderboard"
