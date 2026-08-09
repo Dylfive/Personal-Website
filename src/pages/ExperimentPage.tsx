@@ -249,7 +249,7 @@ function RecommendationsPanel({ album, allAlbums }: { album: AlbumEntry; allAlbu
             id="generate-recommendations-btn"
             onClick={generate}
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm transition-all duration-200 hover:scale-105 active:scale-95"
-            style={{ background: 'linear-gradient(90deg, #f5a623, #e8941a)', color: '#0d0d0f', boxShadow: '0 0 20px rgba(245,166,35,0.3)' }}
+            style={{ background: 'linear-gradient(90deg, var(--accent-primary), var(--accent-secondary))', color: '#fff', boxShadow: '0 0 20px var(--accent-glow)' }}
           >
             <Sparkles className="w-4 h-4" />
             Generate Recommendations
@@ -289,13 +289,13 @@ function RecommendationsPanel({ album, allAlbums }: { album: AlbumEntry; allAlbu
               <div className="flex items-start gap-3">
                 <span
                   className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black mt-0.5"
-                  style={{ background: 'rgba(245,166,35,0.12)', color: '#f5a623', border: '1px solid rgba(245,166,35,0.25)' }}
+                  style={{ background: 'color-mix(in srgb, var(--accent-primary) 12%, transparent)', color: 'var(--accent-primary)', border: '1px solid color-mix(in srgb, var(--accent-primary) 25%, transparent)' }}
                 >
                   {i + 1}
                 </span>
                 <div className="min-w-0">
                   <p className="text-white text-sm font-bold truncate">{rec.title}</p>
-                  <p className="text-xs mt-0.5 truncate" style={{ color: '#f5a623' }}>{rec.artist}</p>
+                  <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--accent-primary)' }}>{rec.artist}</p>
                   <p className="text-white/40 text-xs mt-1.5 leading-relaxed">{rec.reason}</p>
                 </div>
               </div>
@@ -433,7 +433,7 @@ function AlbumDetailModal({
             </div>
             <div className="min-w-0 flex-1 pb-1">
               <h2 className="text-xl sm:text-2xl font-black text-white leading-tight line-clamp-2">{String(album.Album)}</h2>
-              <p className="text-sm font-bold mt-1 truncate" style={{ color: '#f5a623' }}>{album.Artist}</p>
+              <p className="text-sm font-bold mt-1 truncate" style={{ color: 'var(--accent-primary)' }}>{album.Artist}</p>
             </div>
           </div>
         </div>

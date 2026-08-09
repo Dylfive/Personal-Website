@@ -37,7 +37,7 @@ function avatarColor(seed: string): string {
 }
 
 function rankBadge(rank: number) {
-  if (rank === 1) return { emoji: '🥇', color: '#f5a623' };
+  if (rank === 1) return { emoji: '🥇', color: 'var(--accent-primary)' };
   if (rank === 2) return { emoji: '🥈', color: '#94a3b8' };
   if (rank === 3) return { emoji: '🥉', color: '#cd7c2f' };
   return { emoji: `#${rank}`, color: '#ffffff33' };
@@ -151,7 +151,7 @@ function LeaderboardRow({
           </p>
           <p
             className="text-sm font-black"
-            style={{ color: entry.avgRating >= 7 ? '#f5a623' : '#94a3b8' }}
+            style={{ color: entry.avgRating >= 7 ? 'var(--accent-primary)' : '#94a3b8' }}
           >
             {entry.albumCount > 0 ? entry.avgRating.toFixed(1) : '—'}
           </p>

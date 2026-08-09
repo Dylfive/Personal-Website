@@ -15,17 +15,17 @@ export default {
         foreground: "#f0ede8",
         surface: "#161618",
         accent: {
-          amber: "#f5a623",
-          amber2: "#e8941a",
-          slate: "#5b7fa6",
-          slate2: "#7a9ec0",
+          amber: "rgb(var(--accent-primary-rgb) / <alpha-value>)",
+          amber2: "rgb(var(--accent-secondary-rgb) / <alpha-value>)",
+          slate: "rgb(var(--accent-secondary-rgb) / <alpha-value>)",
+          slate2: "rgb(var(--accent-primary-rgb) / <alpha-value>)",
         },
-        // Keep legacy aliases so existing components don't break immediately
+        // Dynamic theme aliases so legacy components switch colors automatically
         neon: {
-          purple: "#f5a623",   // remapped → amber
-          blue:   "#5b7fa6",   // remapped → slate
-          cyan:   "#7a9ec0",   // remapped → slate2
-          magenta:"#d97706",
+          purple: "rgb(var(--accent-primary-rgb) / <alpha-value>)",
+          blue:   "rgb(var(--accent-secondary-rgb) / <alpha-value>)",
+          cyan:   "rgb(var(--accent-secondary-rgb) / <alpha-value>)",
+          magenta:"rgb(var(--accent-primary-rgb) / <alpha-value>)",
           green:  "#22c55e",
         },
       },
@@ -55,4 +55,3 @@ export default {
   },
   plugins: [],
 }
-

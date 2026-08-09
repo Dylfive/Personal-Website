@@ -56,7 +56,7 @@ function VinylRecord() {
             height: '36%',
             top: '32%',
             left: '32%',
-            background: 'linear-gradient(135deg, #f5a623 0%, #e8941a 100%)',
+            background: 'linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%)',
           }}
         >
           {/* Label texture lines */}

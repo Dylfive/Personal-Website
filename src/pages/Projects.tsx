@@ -16,7 +16,7 @@ const Projects = () => {
       {/* Music Dashboard */}
       <div className="mb-12">
         <div className="mb-6">
-          <h2 className="text-xs font-bold uppercase tracking-[0.3em] text-[#bc13fe] mb-2">Music Taste Dashboard</h2>
+          <h2 className="text-xs font-bold uppercase tracking-[0.3em] text-[color:var(--accent-primary)] mb-2">Music Taste Dashboard</h2>
           <p className="text-white/50 text-sm max-w-2xl">
             A personal Letterboxd for albums — every record I've listened to, rated out of 10, with live data visualizations across genre, era, and listening stats. Built with React, TypeScript, and the iTunes API.
           </p>

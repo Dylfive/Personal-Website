@@ -6,6 +6,8 @@
 :root {
   --accent-primary: #8b5cf6;
   --accent-secondary: #06b6d4;
+  --accent-primary-rgb: 139, 92, 246;
+  --accent-secondary-rgb: 6, 182, 212;
   --accent-glow: rgba(139,92,246,0.35);
   --gradient-from: #8b5cf6;
   --gradient-to: #06b6d4;

@@ -82,7 +82,7 @@ export const THEMES: ThemeDef[] = [
     gradientFrom: '#14b8a6',
     gradientTo: '#fb7185',
     surface: 'rgba(20,184,166,0.06)',
-    preview: ['#14b8a6', '#fb7185'],
+    preview: ['#20,184,166', '#fb7185'],
   },
   {
     id: 'fuchsia-blue',
@@ -200,6 +200,18 @@ const DEFAULT_THEME_ID = 'violet-cyan';
 const OWNER_EMAIL = 'dyl.gauvin@gmail.com';
 const SITE_THEME_KEY = 'albumwall_site_theme';
 
+// ─── Helper: Convert Hex Color to R, G, B ─────────────────────────────────────
+function hexToRgb(hex: string): string {
+  const clean = hex.replace('#', '');
+  if (clean.length === 6) {
+    const r = parseInt(clean.substring(0, 2), 16);
+    const g = parseInt(clean.substring(2, 4), 16);
+    const b = parseInt(clean.substring(4, 6), 16);
+    return `${r}, ${g}, ${b}`;
+  }
+  return '139, 92, 246';
+}
+
 // ─── Context ──────────────────────────────────────────────────────────────────
 interface ThemeContextValue {
   siteTheme: ThemeDef;
@@ -222,6 +234,8 @@ function applyTheme(theme: ThemeDef) {
   const root = document.documentElement;
   root.style.setProperty('--accent-primary', theme.primary);
   root.style.setProperty('--accent-secondary', theme.secondary);
+  root.style.setProperty('--accent-primary-rgb', hexToRgb(theme.primary));
+  root.style.setProperty('--accent-secondary-rgb', hexToRgb(theme.secondary));
   root.style.setProperty('--accent-glow', theme.glow);
   root.style.setProperty('--gradient-from', theme.gradientFrom);
   root.style.setProperty('--gradient-to', theme.gradientTo);
