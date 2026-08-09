@@ -1,5 +1,74 @@
 import type { AlbumEntry } from '../types/album';
 
+export interface AlbumRecommendation {
+  title: string;
+  artist: string;
+  reason: string;
+}
+
+/** Calls Gemini to get 5 album recommendations similar to the provided album. */
+export async function getAlbumRecommendations(
+  album: AlbumEntry,
+  userCollection: AlbumEntry[] = []
+): Promise<AlbumRecommendation[]> {
+  const apiKey =
+    (import.meta.env.VITE_GEMINI_API_KEY as string | undefined) ||
+    localStorage.getItem('GEMINI_API_KEY');
+
+  if (!apiKey) {
+    throw new Error('NO_API_KEY');
+  }
+
+  const collectionTitles = userCollection
+    .slice(0, 30)
+    .map((a) => `"${String(a.Album)}" by ${a.Artist}`)
+    .join(', ');
+
+  const prompt = `You are a music expert and recommendation engine.
+
+Album: "${String(album.Album)}" by ${album.Artist}
+Genre: ${album.Genre}
+Release Year: ${album['Release Year']}
+User Rating: ${album.Rating}/10
+
+${collectionTitles ? `Albums already in user's collection (do NOT recommend these): ${collectionTitles}` : ''}
+
+Recommend exactly 5 albums that fans of this album would enjoy. For each recommendation provide:
+- A real, specific album title
+- The correct artist name
+- A concise 1-sentence reason why it fits
+
+Return ONLY a valid JSON array in this exact format, no markdown, no extra text:
+[{"title":"Album Name","artist":"Artist Name","reason":"One sentence reason."},...]`;
+
+  const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+
+  const res = await fetch(geminiUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
+    }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Gemini API error: ${res.statusText}`);
+  }
+
+  const data = await res.json();
+  const text: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+
+  // Strip potential markdown code fences
+  const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+  const jsonStart = cleaned.indexOf('[');
+  const jsonEnd = cleaned.lastIndexOf(']');
+  if (jsonStart === -1 || jsonEnd === -1) throw new Error('No JSON array in response');
+
+  return JSON.parse(cleaned.slice(jsonStart, jsonEnd + 1)) as AlbumRecommendation[];
+}
+
+
 function formatMillisecondsToHMS(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
   const hours = Math.floor(totalSeconds / 3600);

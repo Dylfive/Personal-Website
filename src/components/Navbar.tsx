@@ -91,6 +91,17 @@ const Navbar = () => {
                 My Collection
               </Link>
 
+              {/* Experiment */}
+              <Link
+                to="/experiment"
+                className={`flex items-center gap-1.5 text-sm font-medium transition-colors hover:text-white ${
+                  location.pathname === '/experiment' ? 'text-accent-amber' : 'text-white/50'
+                }`}
+              >
+                <FlaskConical className="w-4 h-4" />
+                Experiment
+              </Link>
+
               {/* Other Walls (leaderboard) */}
               <Link
                 to="/leaderboard"
@@ -175,6 +186,16 @@ const Navbar = () => {
                   className="flex items-center gap-2 text-base font-medium text-white/70 hover:text-[color:var(--accent-primary)] transition-colors"
                 >
                   <Sparkles className="w-5 h-5" /> My Collection
+                </Link>
+                <Link
+                  to="/experiment"
+                  className={`flex items-center gap-2 text-base font-medium transition-colors ${
+                    location.pathname === '/experiment'
+                      ? 'text-accent-amber'
+                      : 'text-white/70 hover:text-accent-amber'
+                  }`}
+                >
+                  <FlaskConical className="w-5 h-5" /> Experiment
                 </Link>
                 <Link
                   to="/leaderboard"

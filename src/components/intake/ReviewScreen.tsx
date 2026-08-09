@@ -17,17 +17,41 @@ export default function ReviewScreen({ draft, onSave, onBack, onDelete, isSubmit
   // Suppress unused parameter lint warning
   void isEditMode;
   const [editedDraft, setEditedDraft] = useState<AlbumEntry>(draft);
+  const [ratingInput, setRatingInput] = useState(draft.Rating?.toString() || '');
+  const [error, setError] = useState<string | null>(null);
   const [showImagePicker, setShowImagePicker] = useState(false);
   const [isSearchingGoogle, setIsSearchingGoogle] = useState(false);
   const [googleImages, setGoogleImages] = useState<string[]>([]);
   const [googleSearchError, setGoogleSearchError] = useState<string | null>(null);
 
   useEffect(() => {
-    setEditedDraft(draft);
+    setEditedDraft({
+      ...draft,
+      Length: normalizeLengthToHMS(draft.Length)
+    });
+    setRatingInput(draft.Rating?.toString() || '');
+    setError(null);
   }, [draft]);
 
   const handleChange = (field: keyof AlbumEntry, value: string | number) => {
     setEditedDraft(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleSaveClick = () => {
+    setError(null);
+    const r = parseFloat(ratingInput);
+    if (isNaN(r) || r < 0 || r > 10) {
+      setError('Rating must be a number between 0.0 and 10.0');
+      return;
+    }
+    
+    // Normalize length to HMS format before saving
+    const finalDraft = {
+      ...editedDraft,
+      Rating: r,
+      Length: normalizeLengthToHMS(editedDraft.Length)
+    };
+    onSave(finalDraft);
   };
 
   const handleItunesIsShit = async () => {
@@ -231,6 +255,13 @@ export default function ReviewScreen({ draft, onSave, onBack, onDelete, isSubmit
         </div>
       </div>
 
+      {error && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+          <AlertCircle className="w-5 h-5 shrink-0" />
+          <p>{error}</p>
+        </motion.div>
+      )}
+
       <div className="flex flex-col sm:flex-row gap-4 mt-8">
         <button
           type="button"
@@ -260,7 +291,7 @@ export default function ReviewScreen({ draft, onSave, onBack, onDelete, isSubmit
 
         <button
           type="button"
-          onClick={() => onSave(editedDraft)}
+          onClick={handleSaveClick}
           disabled={isSubmitting}
           className="flex-[2] flex items-center justify-center gap-2 py-4 rounded-xl font-bold text-lg bg-white text-black hover:bg-white/90 transition-all disabled:opacity-50"
         >

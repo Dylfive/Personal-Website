@@ -85,6 +85,16 @@ function AppShell() {
             </AuthGuard>
           }
         />
+        <Route
+          path="/experiment"
+          element={
+            <AuthGuard>
+              <main className="pt-20">
+                <ExperimentPage />
+              </main>
+            </AuthGuard>
+          }
+        />
 
         {/* Catch-all → login */}
         <Route path="*" element={<Navigate to="/login" replace />} />
