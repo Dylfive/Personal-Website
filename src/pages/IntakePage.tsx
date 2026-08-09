@@ -45,7 +45,7 @@ export default function IntakePage() {
             onClick={() => handleTabChange('add')}
             className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 ${
               activeTab === 'add'
-                ? 'bg-accent-amber text-black shadow-[0_0_18px_rgba(245,166,35,0.35)]'
+                ? 'bg-accent-amber text-black shadow-[0_0_18px_var(--accent-glow)]'
                 : 'text-white/60 hover:text-white hover:bg-white/5'
             }`}
           >
@@ -60,7 +60,7 @@ export default function IntakePage() {
             onClick={() => handleTabChange('collection')}
             className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 ${
               activeTab === 'collection'
-                ? 'bg-accent-amber text-black shadow-[0_0_18px_rgba(245,166,35,0.35)]'
+                ? 'bg-accent-amber text-black shadow-[0_0_18px_var(--accent-glow)]'
                 : 'text-white/60 hover:text-white hover:bg-white/5'
             }`}
           >

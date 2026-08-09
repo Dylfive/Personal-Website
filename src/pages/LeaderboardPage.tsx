@@ -248,7 +248,7 @@ export default function LeaderboardPage() {
               onClick={() => setSortKey(key)}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold border transition-all duration-200 ${
                 sortKey === key
-                  ? 'bg-accent-amber text-black border-accent-amber shadow-[0_0_16px_rgba(245,166,35,0.35)]'
+                  ? 'bg-accent-amber text-black border-accent-amber shadow-[0_0_16px_var(--accent-glow)]'
                   : 'bg-white/[0.04] border-white/10 text-white/60 hover:text-white hover:border-white/20 hover:bg-white/[0.07]'
               }`}
             >

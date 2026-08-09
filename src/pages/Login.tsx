@@ -85,7 +85,7 @@ function VinylRecord() {
         <div
           className="h-0.5 rounded-full origin-right"
           style={{
-            background: 'linear-gradient(90deg, rgba(245,166,35,0.7), rgba(255,255,255,0.2))',
+            background: 'linear-gradient(90deg, color-mix(in srgb, var(--accent-primary) 70%, transparent), rgba(255,255,255,0.2))',
             transform: 'rotate(-32deg)',
             transformOrigin: 'right center',
             width: '100%',

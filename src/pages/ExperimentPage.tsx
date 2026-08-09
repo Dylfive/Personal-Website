@@ -99,7 +99,7 @@ const SORT_OPTIONS: SortOption[] = [
 ];
 
 function ratingColor(r: number): string {
-  if (r >= 9)   return '#f5a623';
+  if (r >= 9)   return 'var(--accent-primary)';
   if (r >= 7.5) return '#06b6d4';
   if (r >= 6)   return '#3b82f6';
   if (r >= 4)   return '#f59e0b';
@@ -692,7 +692,7 @@ export default function ExperimentPage() {
                 disabled={key === 'color' && colorExtracting}
                 className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold border transition-all duration-200 ${
                   sortMode === key
-                    ? 'bg-accent-amber text-black border-accent-amber shadow-[0_0_14px_rgba(245,166,35,0.4)]'
+                    ? 'bg-accent-amber text-black border-accent-amber shadow-[0_0_14px_var(--accent-glow)]'
                     : 'bg-white/[0.04] border-white/10 text-white/55 hover:text-white hover:border-white/20 hover:bg-white/[0.07]'
                 } disabled:opacity-40 disabled:cursor-wait`}
               >
