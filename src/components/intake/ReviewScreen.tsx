@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Save, ArrowLeft, Disc3, Calendar, Clock, Music, AlertTriangle, Loader2, Frown, Link as LinkIcon, Mic2, Trash2 } from 'lucide-react';
+import { Save, ArrowLeft, Disc3, Calendar, Clock, Music, AlertTriangle, Loader2, Frown, Link as LinkIcon, Mic2, Trash2, AlertCircle, Star } from 'lucide-react';
 import type { AlbumEntry } from '../../types/album';
 
 interface ReviewScreenProps {
@@ -13,9 +13,49 @@ interface ReviewScreenProps {
   isEditMode?: boolean;
 }
 
+export function normalizeLengthToHMS(length: string): string {
+  if (!length) return '';
+  
+  const clean = length.trim();
+  if (!clean) return '';
+  
+  const parts = clean.split(':').map(Number);
+  
+  // If it's MM:SS:00 (Google Sheets format where first part > 3 and 3 parts total)
+  if (parts.length === 3 && parts[0] > 3) {
+    const totalMinutes = parts[0];
+    const seconds = parts[1];
+    const hrs = Math.floor(totalMinutes / 60);
+    const mins = totalMinutes % 60;
+    return [
+      hrs.toString().padStart(2, '0'),
+      mins.toString().padStart(2, '0'),
+      seconds.toString().padStart(2, '0')
+    ].join(':');
+  }
+  
+  // If it's already HH:MM:SS
+  if (parts.length === 3) {
+    return parts.map(p => (isNaN(p) ? 0 : p).toString().padStart(2, '0')).join(':');
+  }
+  
+  // If it's MM:SS
+  if (parts.length === 2) {
+    const mins = parts[0];
+    const secs = parts[1];
+    const hrs = Math.floor(mins / 60);
+    const m = mins % 60;
+    return [
+      hrs.toString().padStart(2, '0'),
+      m.toString().padStart(2, '0'),
+      secs.toString().padStart(2, '0')
+    ].join(':');
+  }
+  
+  return clean;
+}
+
 export default function ReviewScreen({ draft, onSave, onBack, onDelete, isSubmitting, backLabel = 'Edit Search', isEditMode = false }: ReviewScreenProps) {
-  // Suppress unused parameter lint warning
-  void isEditMode;
   const [editedDraft, setEditedDraft] = useState<AlbumEntry>(draft);
   const [ratingInput, setRatingInput] = useState(draft.Rating?.toString() || '');
   const [error, setError] = useState<string | null>(null);
@@ -84,7 +124,7 @@ export default function ReviewScreen({ draft, onSave, onBack, onDelete, isSubmit
       }
     }
 
-    // 2. Fallback to MusicBrainz Cover Art Archive (free, open API, no key required)
+    // 2. Fallback to MusicBrainz Cover Art Archive
     try {
       const mbRes = await fetch(
         `https://musicbrainz.org/ws/2/release/?query=release:"${encodeURIComponent(String(editedDraft.Album))}" AND artist:"${encodeURIComponent(editedDraft.Artist)}"&fmt=json`
@@ -107,7 +147,7 @@ export default function ReviewScreen({ draft, onSave, onBack, onDelete, isSubmit
       console.warn('MusicBrainz fetch error:', err);
     }
 
-    // 3. Fallback to opening Google Image Search tab for manual selection
+    // 3. Fallback to Google Search
     setIsSearchingGoogle(false);
     setGoogleSearchError('Auto-fetch failed. Opened Google Search — copy & paste an image URL below.');
     window.open(`https://www.google.com/search?tbm=isch&q=${query}`, '_blank');
@@ -130,7 +170,7 @@ export default function ReviewScreen({ draft, onSave, onBack, onDelete, isSubmit
         </div>
         <div className="flex flex-col justify-center">
           <h3 className="text-2xl font-bold text-white">{editedDraft.Album}</h3>
-          <p className="text-neon-purple text-lg">{editedDraft.Artist}</p>
+          <p className="text-[color:var(--accent-primary)] text-lg">{editedDraft.Artist}</p>
           <div className="mt-2 flex flex-wrap gap-2 items-center">
             <span className="inline-flex px-3 py-1 bg-white/5 rounded-full border border-white/10 text-sm font-bold">
               Rating: {editedDraft.Rating}/10
@@ -157,12 +197,12 @@ export default function ReviewScreen({ draft, onSave, onBack, onDelete, isSubmit
               value={editedDraft.CoverArt}
               onChange={(e) => handleChange('CoverArt', e.target.value)}
               placeholder="Paste image URL here..."
-              className="w-full px-4 py-2 bg-black/20 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-neon-purple text-white text-sm"
+              className="w-full px-4 py-2 bg-black/20 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-[color:var(--accent-primary)] text-white text-sm"
             />
           </div>
           
           {isSearchingGoogle && (
-            <div className="flex items-center gap-2 text-neon-purple text-sm">
+            <div className="flex items-center gap-2 text-[color:var(--accent-primary)] text-sm">
               <Loader2 className="w-4 h-4 animate-spin" /> Searching Google...
             </div>
           )}
@@ -181,7 +221,7 @@ export default function ReviewScreen({ draft, onSave, onBack, onDelete, isSubmit
                   key={idx}
                   type="button"
                   onClick={() => handleChange('CoverArt', img)}
-                  className={`relative rounded-lg overflow-hidden border-2 transition-all aspect-square ${editedDraft.CoverArt === img ? 'border-neon-purple scale-95' : 'border-transparent hover:border-white/30'}`}
+                  className={`relative rounded-lg overflow-hidden border-2 transition-all aspect-square ${editedDraft.CoverArt === img ? 'border-[color:var(--accent-primary)] scale-95' : 'border-transparent hover:border-white/30'}`}
                 >
                   <img src={img} alt={`Google Result ${idx}`} className="w-full h-full object-cover" />
                 </button>
@@ -194,47 +234,71 @@ export default function ReviewScreen({ draft, onSave, onBack, onDelete, isSubmit
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <label className="flex items-center gap-2 text-sm font-medium text-white/70">
-            <Disc3 className="w-4 h-4 text-neon-purple" /> Genres
+            <Disc3 className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} /> Genres
           </label>
           <input
             type="text"
             value={editedDraft.Genre}
             onChange={(e) => handleChange('Genre', e.target.value)}
-            className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-neon-blue text-white"
+            className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-[color:var(--accent-secondary)] text-white"
           />
         </div>
 
         <div className="space-y-2">
           <label className="flex items-center gap-2 text-sm font-medium text-white/70">
-            <Calendar className="w-4 h-4 text-neon-purple" /> Release Year
+            <Calendar className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} /> Release Year
           </label>
           <input
             type="number"
             value={editedDraft['Release Year']}
             onChange={(e) => handleChange('Release Year', parseInt(e.target.value) || 0)}
-            className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-neon-blue text-white"
+            className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-[color:var(--accent-secondary)] text-white"
           />
         </div>
 
         <div className="space-y-2">
           <label className="flex items-center gap-2 text-sm font-medium text-white/70">
-            <Clock className="w-4 h-4 text-neon-purple" /> Total Length
+            <Clock className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} /> Total Length
           </label>
           <input
             type="text"
             value={editedDraft.Length}
             onChange={(e) => handleChange('Length', e.target.value)}
             placeholder="HH:MM:SS"
-            className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-neon-blue text-white font-mono"
+            className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-[color:var(--accent-secondary)] text-white font-mono"
           />
         </div>
         
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-white/70">Track Count</label>
+          <label className="flex items-center gap-2 text-sm font-medium text-white/70">
+            <Music className="w-4 h-4" /> Track Count
+          </label>
           <input
             type="number"
             value={editedDraft.TrackCount}
             onChange={(e) => handleChange('TrackCount', parseInt(e.target.value) || 0)}
+            className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-[color:var(--accent-secondary)] text-white font-mono"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 text-sm font-medium text-white/70">
+            <Star className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} /> Rating (0.0 - 10.0)
+          </label>
+          <input
+            type="number"
+            min="0"
+            max="10"
+            step="0.1"
+            value={ratingInput}
+            onChange={(e) => {
+              setRatingInput(e.target.value);
+              const val = parseFloat(e.target.value);
+              if (!isNaN(val)) {
+                handleChange('Rating', val);
+              }
+            }}
+            placeholder="0.0"
             className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-[color:var(--accent-secondary)] text-white font-mono"
           />
         </div>

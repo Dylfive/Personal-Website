@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, LogOut, Disc3, Music, Users, LayoutGrid, Sparkles } from 'lucide-react';
+import { Menu, X, LogOut, Disc3, Music, Users, LayoutGrid, Sparkles, FlaskConical } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const Navbar = () => {

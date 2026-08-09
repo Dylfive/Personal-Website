@@ -9,6 +9,7 @@ import Login from './pages/Login';
 import LeaderboardPage from './pages/LeaderboardPage';
 import OwnerWallPage from './pages/OwnerWallPage';
 import UserWallPage from './pages/UserWallPage';
+import ExperimentPage from './pages/ExperimentPage';
 import Resume from './pages/Resume';
 import { useAuth } from './contexts/AuthContext';
 
