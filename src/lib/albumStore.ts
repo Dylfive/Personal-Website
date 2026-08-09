@@ -53,6 +53,7 @@ export async function getUserAlbums(userId?: string): Promise<AlbumEntry[]> {
           ExactReleaseDate: item.exact_release_date ?? '',
           RankOrder: item.rank_order !== undefined && item.rank_order !== null ? Number(item.rank_order) : undefined,
           IsHidden: item.is_hidden ?? false,
+          TopSong: item.top_song ?? '',
         }));
 
         // Sort by Rating desc, then RankOrder asc (lower = better tiebreaker rank)
@@ -107,6 +108,7 @@ export async function addUserAlbum(userId: string, newAlbum: AlbumEntry): Promis
         exact_release_date: newAlbum.ExactReleaseDate ?? '',
         rank_order: newAlbum.RankOrder ?? null,
         is_hidden: newAlbum.IsHidden ?? false,
+        top_song: newAlbum.TopSong ?? '',
       },
     ]);
     if (error) {
@@ -182,6 +184,7 @@ export async function updateUserAlbum(
         exact_release_date: updatedAlbum.ExactReleaseDate ?? '',
         rank_order: updatedAlbum.RankOrder ?? null,
         is_hidden: updatedAlbum.IsHidden ?? false,
+        top_song: updatedAlbum.TopSong ?? '',
       },
     ]);
     if (error) console.warn('Supabase update insert warning:', error.message);
@@ -294,4 +297,24 @@ export async function updateAlbumOnGitHub(
   updatedAlbum: AlbumEntry,
 ): Promise<void> {
   await callGitHubAPI({ action: 'update', album: updatedAlbum, originalName });
+}
+
+export async function deleteUserAlbum(userId: string, albumName: string): Promise<AlbumEntry[]> {
+  const normalized = albumName.toLowerCase().trim();
+  try {
+    await supabase
+      .from('user_albums')
+      .delete()
+      .eq('user_id', userId)
+      .ilike('album', albumName.trim());
+  } catch (err) {
+    console.warn('Supabase deleteUserAlbum exception:', err);
+  }
+
+  const current = await getUserAlbums(userId);
+  const updated = current.filter(
+    (a) => String(a.Album).toLowerCase().trim() !== normalized
+  );
+  localStorage.setItem(`albums_user_${userId}`, JSON.stringify(updated));
+  return updated;
 }

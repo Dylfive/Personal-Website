@@ -2,13 +2,13 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronRight, Music, ExternalLink, Star, Calendar, Clock,
-  Trophy, Disc3, Search, ArrowUpDown, BarChart2,
+  Trophy, Disc3, Search, ArrowUpDown, BarChart2, Pencil, Mic2
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { AlbumEntry } from '../types/album';
 import rawAlbumData from '../data/Album-Data.json';
-
-// ─── Copied helpers (same as MusicDashboard — kept local to avoid coupling) ───
+import { useAuth } from '../contexts/AuthContext';
+import { updateUserAlbum } from '../lib/albumStore';
 
 type SortOption = 'rating' | 'year_desc' | 'year_asc' | 'title' | 'artist';
 
@@ -40,7 +40,7 @@ function generateGradient(seed: string): string {
   return `linear-gradient(135deg, hsl(${h1},70%,30%), hsl(${h2},80%,20%))`;
 }
 
-const NEON_COLORS = ['#f5a623', '#5b7fa6', '#7a9ec0', '#d97706', '#22c55e', '#f59e0b', '#ef4444'];
+const NEON_COLORS = ['#bc13fe', '#3b82f6', '#06b6d4', '#d946ef', '#22c55e', '#f59e0b', '#ef4444'];
 
 function computeTopGenres(albums: AlbumEntry[], topN = 7) {
   const map: Record<string, { total: number; count: number }> = {};
@@ -67,7 +67,7 @@ function computeStats(albums: AlbumEntry[]) {
   const longest = byLength[byLength.length - 1];
   const highestRated = [...albums].sort((a, b) => b.Rating - a.Rating)[0];
   const lowestRated = [...albums].sort((a, b) => a.Rating - b.Rating)[0];
-  const avgRating = Math.round((albums.reduce((s, a) => s + a.Rating, 0) / albums.length) * 10) / 10;
+  const avgRating = Math.round((albums.reduce((s, a) => s + a.Rating, 0) / (albums.length || 1)) * 10) / 10;
   const artistCounts: Record<string, number> = {};
   albums.forEach((a) => { artistCounts[a.Artist] = (artistCounts[a.Artist] || 0) + 1; });
   const topArtist = Object.entries(artistCounts).sort((a, b) => b[1] - a[1])[0];
@@ -75,10 +75,9 @@ function computeStats(albums: AlbumEntry[]) {
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
-
 const StatCard = ({ icon, label, value, sub }: { icon: React.ReactNode; label: string; value: string; sub?: string }) => (
-  <div className="glass-panel rounded-2xl p-4 border border-white/10 flex gap-3 items-start hover:border-accent-amber/40 transition-all duration-300 group">
-    <div className="text-accent-amber mt-0.5 group-hover:scale-110 transition-transform flex-shrink-0">{icon}</div>
+  <div className="glass-panel rounded-2xl p-4 border border-white/10 flex gap-3 items-start hover:border-[color:var(--accent-primary)]/40 transition-all duration-300 group">
+    <div className="text-[color:var(--accent-primary)] mt-0.5 group-hover:scale-110 transition-transform flex-shrink-0">{icon}</div>
     <div className="min-w-0">
       <p className="text-[10px] uppercase tracking-widest text-white/40 font-bold mb-0.5">{label}</p>
       <p className="text-sm font-bold text-white truncate">{value}</p>
@@ -98,7 +97,7 @@ const GenreBar = ({ genre, avg, count, max, color }: { genre: string; avg: numbe
         className="h-full rounded-full"
         style={{ background: color }}
         initial={{ width: 0 }}
-        animate={{ width: `${(avg / max) * 100}%` }}
+        animate={{ width: `${(avg / (max || 1)) * 100}%` }}
         transition={{ duration: 1, ease: 'easeOut', delay: 0.2 }}
       />
     </div>
@@ -145,13 +144,13 @@ const RatingsChart = ({ albums }: { albums: AlbumEntry[] }) => {
     if (r < 7.5) return '#3b82f6';
     if (r < 8.5) return '#06b6d4';
     if (r < 9.5) return '#d946ef';
-    return '#f5a623';
+    return 'var(--accent-primary)';
   };
 
   return (
     <div className="glass-panel rounded-3xl border border-white/10 p-5">
       <div className="flex items-center gap-2 mb-5">
-        <BarChart2 className="w-4 h-4 text-accent-amber shrink-0" />
+        <BarChart2 className="w-4 h-4 text-[color:var(--accent-primary)] shrink-0" />
         <div>
           <h4 className="text-sm font-bold uppercase tracking-[0.2em] text-white/90 leading-none">Rating Distribution</h4>
           <p className="text-[11px] text-white/35 mt-0.5">Scroll or drag to explore</p>
@@ -196,7 +195,7 @@ const RatingsChart = ({ albums }: { albums: AlbumEntry[] }) => {
       <div className="flex justify-between items-center mt-3 pt-3 border-t border-white/5">
         <span className="text-[10px] text-white/30 font-mono">← 0.0</span>
         <span className="text-[10px] text-white/30 font-mono flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-accent-amber inline-block animate-pulse" />
+          <span className="w-1.5 h-1.5 rounded-full bg-[color:var(--accent-primary)] inline-block animate-pulse" />
           Scroll or drag to explore
         </span>
         <span className="text-[10px] text-white/30 font-mono">10.0 →</span>
@@ -205,10 +204,60 @@ const RatingsChart = ({ albums }: { albums: AlbumEntry[] }) => {
   );
 };
 
-// ─── Album List (read-only) ───────────────────────────────────────────────────
-const AlbumList = ({ albums }: { albums: AlbumEntry[] }) => {
+// ─── Inline Title/Artist Editor for Wall ─────────────────────────────────────
+const InlineWallEditor = ({
+  album,
+  onSave,
+  onCancel,
+}: {
+  album: AlbumEntry;
+  onSave: (updated: AlbumEntry) => void;
+  onCancel: () => void;
+}) => {
+  const [title, setTitle] = useState(String(album.Album));
+  const [artist, setArtist] = useState(album.Artist);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim() || !artist.trim()) return;
+    onSave({ ...album, Album: title.trim(), Artist: artist.trim() });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="flex-1 flex flex-col gap-2 p-1" onClick={(e) => e.stopPropagation()}>
+      <input
+        type="text"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        className="w-full bg-white/10 border border-white/20 rounded-lg px-2.5 py-1 text-sm font-bold text-white focus:outline-none focus:border-[color:var(--accent-primary)]"
+        placeholder="Album Title"
+        autoFocus
+      />
+      <input
+        type="text"
+        value={artist}
+        onChange={(e) => setArtist(e.target.value)}
+        className="w-full bg-white/10 border border-white/20 rounded-lg px-2.5 py-1 text-xs text-[color:var(--accent-primary)] focus:outline-none focus:border-[color:var(--accent-primary)]"
+        placeholder="Artist Name"
+      />
+      <div className="flex gap-2 justify-end mt-1">
+        <button type="button" onClick={onCancel} className="px-2 py-0.5 text-[10px] text-white/50 hover:text-white">
+          Cancel
+        </button>
+        <button type="submit" className="px-2.5 py-0.5 text-[10px] font-bold rounded bg-[color:var(--accent-primary)] text-white">
+          Save
+        </button>
+      </div>
+    </form>
+  );
+};
+
+// ─── Album List (Editable on Wall) ────────────────────────────────────────────
+const AlbumList = ({ albums, onReload }: { albums: AlbumEntry[]; onReload?: () => void }) => {
+  const { user } = useAuth();
   const [sortBy, setSortBy] = useState<SortOption>('rating');
   const [searchQuery, setSearchQuery] = useState('');
+  const [editingKey, setEditingKey] = useState<string | null>(null);
 
   const filteredAndSorted = useMemo(() => {
     const query = searchQuery.toLowerCase();
@@ -217,7 +266,8 @@ const AlbumList = ({ albums }: { albums: AlbumEntry[] }) => {
       const matchArtist = a.Artist.toLowerCase().includes(query);
       const matchGenre = a.Genre.toLowerCase().includes(query);
       const matchRating = a.Rating.toFixed(1).includes(query) || String(a.Rating).includes(query);
-      return matchTitle || matchArtist || matchGenre || matchRating;
+      const matchSong = (a.TopSong ?? '').toLowerCase().includes(query);
+      return matchTitle || matchArtist || matchGenre || matchRating || matchSong;
     });
     result.sort((a, b) => {
       if (sortBy === 'rating') return b.Rating - a.Rating;
@@ -230,17 +280,34 @@ const AlbumList = ({ albums }: { albums: AlbumEntry[] }) => {
     return result;
   }, [albums, searchQuery, sortBy]);
 
+  const handleSaveInline = async (originalName: string, updated: AlbumEntry) => {
+    if (!user?.id) return;
+    await updateUserAlbum(user.id, originalName, updated);
+    setEditingKey(null);
+    onReload?.();
+  };
+
   return (
     <div className="glass-panel rounded-3xl border border-white/10 overflow-hidden flex flex-col h-full">
       <div className="p-6 border-b border-white/10 bg-black/20">
         <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
-            <input type="text" placeholder="Search albums, artists, genres..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-full py-2 pl-10 pr-4 text-sm text-white placeholder-white/40 focus:outline-none focus:border-accent-amber/50 focus:ring-1 focus:ring-accent-amber/50 transition-all" />
+            <input
+              type="text"
+              placeholder="Search albums, artists, songs..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded-full py-2 pl-10 pr-4 text-sm text-white placeholder-white/40 focus:outline-none focus:border-[color:var(--accent-primary)]/50 focus:ring-1 focus:ring-[color:var(--accent-primary)]/50 transition-all"
+            />
           </div>
           <div className="relative w-full sm:w-auto min-w-[160px]">
             <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
-            <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortOption)} className="w-full appearance-none bg-white/5 border border-white/10 rounded-full py-2 pl-10 pr-8 text-sm text-white focus:outline-none focus:border-accent-amber/50 focus:ring-1 focus:ring-accent-amber/50 transition-all cursor-pointer">
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortOption)}
+              className="w-full appearance-none bg-white/5 border border-white/10 rounded-full py-2 pl-10 pr-8 text-sm text-white focus:outline-none focus:border-[color:var(--accent-primary)]/50 focus:ring-1 focus:ring-[color:var(--accent-primary)]/50 transition-all cursor-pointer"
+            >
               <option value="rating" className="bg-[#1a1a1a]">Highest Rated</option>
               <option value="year_desc" className="bg-[#1a1a1a]">Newest First</option>
               <option value="year_asc" className="bg-[#1a1a1a]">Oldest First</option>
@@ -253,7 +320,7 @@ const AlbumList = ({ albums }: { albums: AlbumEntry[] }) => {
           </div>
         </div>
         <div className="flex justify-between items-end mt-4">
-          <h3 className="text-sm font-bold uppercase tracking-[0.2em] text-accent-amber flex items-center gap-2">
+          <h3 className="text-sm font-bold uppercase tracking-[0.2em] text-[color:var(--accent-primary)] flex items-center gap-2">
             <Disc3 className="w-4 h-4" /> Collection
           </h3>
           <p className="text-white/40 text-xs font-mono">{filteredAndSorted.length} results</p>
@@ -265,6 +332,9 @@ const AlbumList = ({ albums }: { albums: AlbumEntry[] }) => {
             const hasCover = album.CoverArt && album.CoverArt !== 'Not Found';
             const isRatingSort = sortBy === 'rating';
             const globalRank = isRatingSort ? albums.findIndex(a => a.Album === album.Album && a.Artist === album.Artist) + 1 : null;
+            const itemKey = `${album.Album}-${album.Artist}`;
+            const isEditing = editingKey === itemKey;
+
             return (
               <motion.div
                 key={`${album.Album}-${album.Artist}-${idx}`}
@@ -289,22 +359,71 @@ const AlbumList = ({ albums }: { albums: AlbumEntry[] }) => {
                     </div>
                   )}
                 </div>
-                <div className="flex-1 min-w-0 flex flex-col justify-center">
-                  <h4 className="text-base sm:text-lg font-bold text-white truncate">{String(album.Album)}</h4>
-                  <p className="text-xs sm:text-sm text-accent-amber truncate">{album.Artist}</p>
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5">
-                    <div className="flex items-center gap-1"><Star className="w-3 h-3 text-accent-amber fill-accent-amber" /><span className="text-xs font-bold text-white">{album.Rating.toFixed(1)}</span></div>
-                    <span className="w-1 h-1 rounded-full bg-white/20" />
-                    <div className="flex items-center gap-1 text-white/50 text-xs"><Calendar className="w-3 h-3" /><span>{album['Release Year']}</span></div>
-                    <span className="w-1 h-1 rounded-full bg-white/20 hidden xs:inline-block" />
-                    <span className="text-[10px] uppercase tracking-wider text-white/40 truncate max-w-[100px] hidden xs:inline">{album.Genre.split(',')[0]}</span>
+
+                {isEditing ? (
+                  <InlineWallEditor
+                    album={album}
+                    onSave={(updated) => handleSaveInline(String(album.Album), updated)}
+                    onCancel={() => setEditingKey(null)}
+                  />
+                ) : (
+                  <div className="flex-1 min-w-0 flex flex-col justify-center">
+                    <h4
+                      onClick={() => user && setEditingKey(itemKey)}
+                      className={`text-base sm:text-lg font-bold text-white truncate ${user ? 'hover:underline cursor-pointer' : ''}`}
+                      title={user ? 'Click to edit title & artist' : undefined}
+                    >
+                      {String(album.Album)}
+                    </h4>
+                    <p
+                      onClick={() => user && setEditingKey(itemKey)}
+                      className={`text-xs sm:text-sm text-[color:var(--accent-primary)] truncate ${user ? 'hover:underline cursor-pointer' : ''}`}
+                    >
+                      {album.Artist}
+                    </p>
+
+                    {/* Passive Top Song */}
+                    {album.TopSong && (
+                      <p className="text-xs text-white/70 font-medium truncate mt-0.5 flex items-center gap-1">
+                        <Mic2 className="w-3 h-3 text-[color:var(--accent-primary)] shrink-0" />
+                        <span className="italic text-white/80">"{album.TopSong}"</span>
+                      </p>
+                    )}
+
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5">
+                      <div className="flex items-center gap-1">
+                        <Star className="w-3 h-3 text-[color:var(--accent-primary)] fill-[color:var(--accent-primary)]" />
+                        <span className="text-xs font-bold text-white">{album.Rating.toFixed(1)}</span>
+                      </div>
+                      <span className="w-1 h-1 rounded-full bg-white/20" />
+                      <div className="flex items-center gap-1 text-white/50 text-xs">
+                        <Calendar className="w-3 h-3" />
+                        <span>{album['Release Year']}</span>
+                      </div>
+                      <span className="w-1 h-1 rounded-full bg-white/20 hidden xs:inline-block" />
+                      <span className="text-[10px] uppercase tracking-wider text-white/40 truncate max-w-[100px] hidden xs:inline">
+                        {album.Genre.split(',')[0]}
+                      </span>
+                    </div>
                   </div>
-                </div>
+                )}
+
                 {album.AppleMusicLink && (
-                  <a href={album.AppleMusicLink} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 p-2 sm:px-4 sm:py-2 rounded-full border border-white/10 text-white/60 hover:text-white hover:border-accent-amber/50 hover:bg-accent-amber/10 transition-all duration-200">
+                  <a href={album.AppleMusicLink} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 p-2 sm:px-4 sm:py-2 rounded-full border border-white/10 text-white/60 hover:text-white hover:border-[color:var(--accent-primary)]/50 hover:bg-white/5 transition-all duration-200">
                     <ExternalLink className="w-4 h-4 sm:hidden" />
                     <span className="hidden sm:inline text-xs font-bold">Listen</span>
                   </a>
+                )}
+
+                {/* Edit Button on Album Wall */}
+                {user && (
+                  <button
+                    onClick={() => setEditingKey(itemKey)}
+                    title="Edit album title or artist"
+                    className="flex-shrink-0 p-2 rounded-full border border-white/10 text-white/30 hover:text-[color:var(--accent-primary)] hover:border-[color:var(--accent-primary)]/40 hover:bg-white/5 opacity-0 group-hover:opacity-100 transition-all duration-200"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
                 )}
               </motion.div>
             );
@@ -325,75 +444,67 @@ export default function OwnerWallPage() {
   const [albums, setAlbums] = useState<AlbumEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      try {
-        // Look up owner's user_id by email via user_profiles join
-        // Strategy: find owner's profile by fetching all user_albums for profiles
-        // where we can identify via a known email lookup.
-        // Since we can't expose emails directly, we use a fallback to raw JSON data
-        // which is already owned by Dylan. For Supabase, we query user_albums
-        // directly for the owner's user_id using a metadata approach:
-        // We attempt to find the owner via the public profile with the reserved nickname 'Dylan'.
-        const { data: profiles } = await supabase
-          .from('user_profiles')
-          .select('user_id, nickname')
-          .ilike('nickname', 'Dylan')
-          .limit(1);
+  const loadWallData = async () => {
+    setLoading(true);
+    try {
+      const { data: profiles } = await supabase
+        .from('user_profiles')
+        .select('user_id, nickname')
+        .ilike('nickname', 'Dylan')
+        .limit(1);
 
-        let ownerUserId: string | null = profiles?.[0]?.user_id ?? null;
+      let ownerUserId: string | null = profiles?.[0]?.user_id ?? null;
 
-        // If no profile found, try to get albums from raw JSON (owner's public data)
-        if (!ownerUserId) {
-          // Fall back to published JSON data from GitHub
-          try {
-            const res = await fetch(
-              'https://raw.githubusercontent.com/Dylfive/Personal-Website/main/src/data/Album-Data.json'
-            );
-            if (res.ok) {
-              const raw = await res.json();
-              setAlbums(raw as AlbumEntry[]);
-            } else {
-              setAlbums(rawAlbumData as AlbumEntry[]);
-            }
-          } catch {
+      if (!ownerUserId) {
+        try {
+          const res = await fetch(
+            'https://raw.githubusercontent.com/Dylfive/Personal-Website/main/src/data/Album-Data.json'
+          );
+          if (res.ok) {
+            const raw = await res.json();
+            setAlbums(raw as AlbumEntry[]);
+          } else {
             setAlbums(rawAlbumData as AlbumEntry[]);
           }
-          setLoading(false);
-          return;
-        }
-
-        // Fetch owner's albums from Supabase
-        const { data, error } = await supabase
-          .from('user_albums')
-          .select('*')
-          .eq('user_id', ownerUserId)
-          .order('rating', { ascending: false });
-
-        if (!error && data && data.length > 0) {
-          setAlbums(
-            data.map((item: any) => ({
-              Album: item.album,
-              Artist: item.artist,
-              Rating: Number(item.rating),
-              Genre: item.genre ?? '',
-              'Release Year': Number(item.release_year ?? 0),
-              Length: item.length ?? '',
-              CoverArt: item.cover_art ?? '',
-              AppleMusicLink: item.apple_music_link ?? '',
-            }))
-          );
-        } else {
+        } catch {
           setAlbums(rawAlbumData as AlbumEntry[]);
         }
-      } catch {
-        setAlbums(rawAlbumData as AlbumEntry[]);
-      } finally {
         setLoading(false);
+        return;
       }
+
+      const { data, error } = await supabase
+        .from('user_albums')
+        .select('*')
+        .eq('user_id', ownerUserId)
+        .order('rating', { ascending: false });
+
+      if (!error && data && data.length > 0) {
+        setAlbums(
+          data.map((item: any) => ({
+            Album: item.album,
+            Artist: item.artist,
+            Rating: Number(item.rating),
+            Genre: item.genre ?? '',
+            'Release Year': Number(item.release_year ?? 0),
+            Length: item.length ?? '',
+            CoverArt: item.cover_art ?? '',
+            AppleMusicLink: item.apple_music_link ?? '',
+            TopSong: item.top_song ?? '',
+          }))
+        );
+      } else {
+        setAlbums(rawAlbumData as AlbumEntry[]);
+      }
+    } catch {
+      setAlbums(rawAlbumData as AlbumEntry[]);
+    } finally {
+      setLoading(false);
     }
-    load();
+  };
+
+  useEffect(() => {
+    loadWallData();
   }, []);
 
   const baseSortedAlbums = useMemo(
@@ -411,7 +522,7 @@ export default function OwnerWallPage() {
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ repeat: Infinity, ease: 'linear', duration: 1 }}
-          className="w-10 h-10 border-2 border-white/20 border-t-accent-amber rounded-full"
+          className="w-10 h-10 border-2 border-white/20 border-t-[color:var(--accent-primary)] rounded-full"
         />
       </div>
     );
@@ -420,34 +531,27 @@ export default function OwnerWallPage() {
   return (
     <div className="min-h-[calc(100vh-80px)] px-4 py-10 relative overflow-hidden">
       {/* Ambient blobs */}
-      <div className="absolute top-0 left-1/4 w-[600px] h-[500px] bg-accent-amber/[0.04] rounded-full blur-[140px] pointer-events-none" />
-      <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-accent-slate/[0.04] rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute top-0 left-1/4 w-[600px] h-[500px] bg-[color:var(--accent-primary)]/[0.04] rounded-full blur-[140px] pointer-events-none" />
 
       <div className="container mx-auto relative z-10 max-w-6xl">
-        {/* Hero Header */}
+        {/* Hero Header: Experiment tag removed, renamed header to Album Wall */}
         <div className="text-center mb-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-accent-amber/10 border border-accent-amber/20 mb-4">
-            <span className="w-1.5 h-1.5 rounded-full bg-accent-amber animate-pulse" />
-            <span className="text-xs text-accent-amber/80 font-bold uppercase tracking-wider">
-              Public Collection
-            </span>
-          </div>
           <h1 className="text-4xl sm:text-5xl font-serif font-black mb-3">
-            Dylan's <span className="gradient-text">Wall</span>
+            Album <span className="gradient-text">Wall</span>
           </h1>
           <p className="text-white/40 text-sm max-w-sm mx-auto leading-relaxed">
-            A curated collection of every album I've rated — {albums.length} and counting.
+            A curated collection of every album rated — {albums.length} and counting.
           </p>
         </div>
 
         {/* Dashboard layout */}
-        <div className="glass-panel p-6 rounded-3xl border border-white/10 hover:border-accent-amber/20 transition-all duration-300 overflow-hidden">
-          {/* Section header */}
+        <div className="glass-panel p-6 rounded-3xl border border-white/10 hover:border-[color:var(--accent-primary)]/20 transition-all duration-300 overflow-hidden">
+          {/* Section header: Renamed to Dylan's List */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
             <div>
               <h3 className="text-2xl font-bold flex items-center gap-2">
-                <Music className="text-accent-amber" />
-                Music Taste Dashboard
+                <Music className="text-[color:var(--accent-primary)]" />
+                Dylan's List
               </h3>
               <p className="text-white/40 text-sm mt-1">
                 {albums.length} albums rated · Dylan's personal collection
@@ -459,7 +563,7 @@ export default function OwnerWallPage() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
             {/* Album List */}
             <div className="lg:col-span-7 flex flex-col h-[950px]">
-              <AlbumList albums={baseSortedAlbums} />
+              <AlbumList albums={baseSortedAlbums} onReload={loadWallData} />
             </div>
 
             {/* Right Column */}
@@ -467,7 +571,7 @@ export default function OwnerWallPage() {
               {/* Top Genres */}
               <div className="glass-panel rounded-3xl border border-white/10 p-5 flex-1">
                 <div className="flex items-center gap-2 mb-4">
-                  <Trophy className="w-4 h-4 text-accent-amber" />
+                  <Trophy className="w-4 h-4 text-[color:var(--accent-primary)]" />
                   <h4 className="text-sm font-bold uppercase tracking-[0.2em] text-white/70">Top Genres by Avg Rating</h4>
                 </div>
                 <div className="space-y-3">
@@ -481,7 +585,7 @@ export default function OwnerWallPage() {
               {stats && (
                 <div className="glass-panel rounded-3xl border border-white/10 p-5">
                   <div className="flex items-center gap-2 mb-4">
-                    <Star className="w-4 h-4 text-accent-amber" />
+                    <Star className="w-4 h-4 text-[color:var(--accent-primary)]" />
                     <h4 className="text-sm font-bold uppercase tracking-[0.2em] text-white/70">Interesting Stats</h4>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-2">

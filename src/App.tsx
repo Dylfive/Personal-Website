@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import AuthGuard from './components/AuthGuard';
 import NicknameModal from './components/NicknameModal';
 import Navbar from './components/Navbar';
@@ -7,6 +8,7 @@ import IntakePage from './pages/IntakePage';
 import Login from './pages/Login';
 import LeaderboardPage from './pages/LeaderboardPage';
 import OwnerWallPage from './pages/OwnerWallPage';
+import UserWallPage from './pages/UserWallPage';
 import Resume from './pages/Resume';
 import { useAuth } from './contexts/AuthContext';
 
@@ -22,7 +24,7 @@ function AppShell() {
   const showNicknameModal = !nicknameLoading && !!user && nickname === null;
 
   return (
-    <div className="min-h-screen bg-background text-foreground selection:bg-accent-amber/30">
+    <div className="min-h-screen bg-background text-foreground selection:text-white">
       <Navbar />
 
       {showNicknameModal && <NicknameModal />}
@@ -48,6 +50,16 @@ function AppShell() {
           element={
             <main className="pt-20">
               <OwnerWallPage />
+            </main>
+          }
+        />
+
+        {/* Any user's public wall */}
+        <Route
+          path="/wall/:userId"
+          element={
+            <main className="pt-20">
+              <UserWallPage />
             </main>
           }
         />
@@ -85,7 +97,9 @@ function App() {
   return (
     <Router basename="/Personal-Website/">
       <AuthProvider>
-        <AppShell />
+        <ThemeProvider>
+          <AppShell />
+        </ThemeProvider>
       </AuthProvider>
     </Router>
   );

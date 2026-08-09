@@ -2,10 +2,24 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Dynamic Theme CSS Variables (set by ThemeContext) ────────────────────── */
+:root {
+  --accent-primary: #8b5cf6;
+  --accent-secondary: #06b6d4;
+  --accent-glow: rgba(139,92,246,0.35);
+  --gradient-from: #8b5cf6;
+  --gradient-to: #06b6d4;
+  --surface-tint: rgba(139,92,246,0.06);
+}
+
 @layer base {
   body {
-    @apply bg-background text-foreground selection:bg-accent-amber/30 selection:text-white;
+    @apply bg-background text-foreground selection:text-white;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    selection-color: white;
+  }
+  body::selection {
+    background: color-mix(in srgb, var(--accent-primary) 30%, transparent);
   }
 
   h1, h2, h3 {
@@ -20,13 +34,14 @@
   }
 
   .neon-border:hover {
-    @apply border-accent-amber/40 shadow-[0_0_24px_rgba(245,166,35,0.2)];
+    border-color: color-mix(in srgb, var(--accent-primary) 40%, transparent);
+    box-shadow: 0 0 24px color-mix(in srgb, var(--accent-primary) 20%, transparent);
   }
 
   /* ── Typography ──────────────────────────────────────────────────────── */
   .gradient-text {
     @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(90deg, #f5a623, #e8941a, #5b7fa6);
+    background-image: linear-gradient(90deg, var(--gradient-from), var(--gradient-to));
     background-size: 200% 200%;
     animation: gradient-x 12s ease infinite;
   }
@@ -43,13 +58,14 @@
 
   /* ── Buttons ─────────────────────────────────────────────────────────── */
   .btn-primary {
-    @apply relative overflow-hidden rounded-full px-8 py-3 font-bold text-white transition-all duration-300;
-    background: linear-gradient(90deg, #f5a623, #e8941a);
-    color: #0d0d0f;
+    @apply relative overflow-hidden rounded-full px-8 py-3 font-bold transition-all duration-300;
+    background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+    color: #fff;
   }
 
   .btn-primary:hover {
-    @apply scale-[1.03] shadow-[0_0_30px_rgba(245,166,35,0.45)];
+    @apply scale-[1.03];
+    box-shadow: 0 0 30px var(--accent-glow);
   }
 
   .btn-ghost {
@@ -77,12 +93,18 @@
     z-index: 0;
   }
 
-  /* ── Amber accent line (top shimmer on cards) ────────────────────────── */
+  /* ── Accent shimmer line (top of cards) ────────────────────────────── */
   .amber-shimmer-top {
     @apply absolute top-0 left-0 right-0 h-px;
-    background: linear-gradient(90deg, transparent, #f5a623, transparent);
+    background: linear-gradient(90deg, transparent, var(--accent-primary), transparent);
     opacity: 0.6;
   }
+
+  /* ── Theme-aware accent utilities ───────────────────────────────────── */
+  .accent-text { color: var(--accent-primary); }
+  .accent-border { border-color: color-mix(in srgb, var(--accent-primary) 40%, transparent); }
+  .accent-bg { background: color-mix(in srgb, var(--accent-primary) 10%, transparent); }
+  .accent-glow-box { box-shadow: 0 0 16px var(--accent-glow); }
 }
 
 /* ── Custom Scrollbar ──────────────────────────────────────────────────── */
@@ -100,5 +122,5 @@
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(245, 166, 35, 0.4);
+  background: color-mix(in srgb, var(--accent-primary) 40%, transparent);
 }

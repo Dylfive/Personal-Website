@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, LogOut, Disc3, Music, Users, LayoutGrid } from 'lucide-react';
+import { Menu, X, LogOut, Disc3, Music, Users, LayoutGrid, Sparkles } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const Navbar = () => {
@@ -45,10 +45,10 @@ const Navbar = () => {
           to={user ? '/intake' : '/login'}
           className="flex items-center gap-2.5 group"
         >
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center border border-accent-amber/30 bg-accent-amber/10 group-hover:bg-accent-amber/20 group-hover:border-accent-amber/50 transition-all duration-300">
-            <Disc3 className="w-5 h-5 text-accent-amber" />
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center border border-white/20 bg-white/5 group-hover:bg-white/10 transition-all duration-300">
+            <Disc3 className="w-5 h-5 text-[color:var(--accent-primary)]" />
           </div>
-          <span className="text-lg font-serif font-bold tracking-tight text-white group-hover:text-accent-amber transition-colors duration-300">
+          <span className="text-lg font-serif font-bold tracking-tight text-white group-hover:text-[color:var(--accent-primary)] transition-colors duration-300">
             AlbumWall
           </span>
         </Link>
@@ -56,11 +56,22 @@ const Navbar = () => {
         {/* ── Desktop Nav ── */}
         <div className="hidden md:flex items-center gap-5">
 
-          {/* Dylan's Wall — always visible to everyone */}
+          {/* Dylan's List */}
           <Link
             to="/wall"
             className={`flex items-center gap-1.5 text-sm font-medium transition-colors hover:text-white ${
-              location.pathname === '/wall' ? 'text-accent-amber' : 'text-white/50'
+              location.pathname === '/wall' ? 'text-[color:var(--accent-primary)]' : 'text-white/50'
+            }`}
+          >
+            <Music className="w-4 h-4" />
+            Dylan's List
+          </Link>
+
+          {/* Dylan's Wall */}
+          <Link
+            to="/wall"
+            className={`flex items-center gap-1.5 text-sm font-medium transition-colors hover:text-white ${
+              location.pathname === '/wall' ? 'text-[color:var(--accent-primary)]' : 'text-white/50'
             }`}
           >
             <LayoutGrid className="w-4 h-4" />
@@ -73,10 +84,10 @@ const Navbar = () => {
               <Link
                 to="/intake"
                 className={`flex items-center gap-1.5 text-sm font-medium transition-colors hover:text-white ${
-                  location.pathname === '/intake' ? 'text-accent-amber' : 'text-white/50'
+                  location.pathname === '/intake' ? 'text-[color:var(--accent-primary)]' : 'text-white/50'
                 }`}
               >
-                <Music className="w-4 h-4" />
+                <Sparkles className="w-4 h-4" />
                 My Collection
               </Link>
 
@@ -84,7 +95,7 @@ const Navbar = () => {
               <Link
                 to="/leaderboard"
                 className={`flex items-center gap-1.5 text-sm font-medium transition-colors hover:text-white ${
-                  location.pathname === '/leaderboard' ? 'text-accent-amber' : 'text-white/50'
+                  location.pathname === '/leaderboard' ? 'text-[color:var(--accent-primary)]' : 'text-white/50'
                 }`}
               >
                 <Users className="w-4 h-4" />
@@ -95,7 +106,7 @@ const Navbar = () => {
               <div className="flex items-center gap-2">
                 <div
                   title={displayName}
-                  className="w-8 h-8 rounded-full border border-accent-amber/40 bg-accent-amber/15 flex items-center justify-center text-accent-amber text-sm font-bold"
+                  className="w-8 h-8 rounded-full border border-white/20 bg-white/10 flex items-center justify-center text-[color:var(--accent-primary)] text-sm font-bold"
                 >
                   {avatarLetter}
                 </div>
@@ -112,7 +123,7 @@ const Navbar = () => {
           ) : (
             !isLoginPage && (
               <Link to="/login">
-                <button className="text-sm font-medium px-5 py-2 rounded-full border border-accent-amber/40 text-accent-amber hover:bg-accent-amber/10 transition-all duration-200">
+                <button className="text-sm font-medium px-5 py-2 rounded-full border border-white/20 text-[color:var(--accent-primary)] hover:bg-white/10 transition-all duration-200">
                   Sign In
                 </button>
               </Link>
@@ -139,13 +150,19 @@ const Navbar = () => {
             transition={{ duration: 0.2 }}
             className="md:hidden absolute top-full left-0 right-0 bg-background/95 backdrop-blur-xl border-b border-white/[0.06] p-6 flex flex-col gap-5"
           >
-            {/* Dylan's Wall — always visible */}
+            <Link
+              to="/wall"
+              className="flex items-center gap-2 text-base font-medium text-white/70 hover:text-[color:var(--accent-primary)] transition-colors"
+            >
+              <Music className="w-5 h-5" /> Dylan's List
+            </Link>
+
             <Link
               to="/wall"
               className={`flex items-center gap-2 text-base font-medium transition-colors ${
                 location.pathname === '/wall'
-                  ? 'text-accent-amber'
-                  : 'text-white/70 hover:text-accent-amber'
+                  ? 'text-[color:var(--accent-primary)]'
+                  : 'text-white/70 hover:text-[color:var(--accent-primary)]'
               }`}
             >
               <LayoutGrid className="w-5 h-5" /> Dylan's Wall
@@ -155,13 +172,13 @@ const Navbar = () => {
               <>
                 <Link
                   to="/intake"
-                  className="flex items-center gap-2 text-base font-medium text-white/70 hover:text-accent-amber transition-colors"
+                  className="flex items-center gap-2 text-base font-medium text-white/70 hover:text-[color:var(--accent-primary)] transition-colors"
                 >
-                  <Music className="w-5 h-5" /> My Collection
+                  <Sparkles className="w-5 h-5" /> My Collection
                 </Link>
                 <Link
                   to="/leaderboard"
-                  className="flex items-center gap-2 text-base font-medium text-white/70 hover:text-accent-amber transition-colors"
+                  className="flex items-center gap-2 text-base font-medium text-white/70 hover:text-[color:var(--accent-primary)] transition-colors"
                 >
                   <Users className="w-5 h-5" /> Other Walls
                 </Link>
@@ -180,7 +197,7 @@ const Navbar = () => {
             ) : (
               !isLoginPage && (
                 <Link to="/login" className="inline-block">
-                  <button className="text-sm font-medium px-5 py-2.5 rounded-full border border-accent-amber/40 text-accent-amber hover:bg-accent-amber/10 transition-all">
+                  <button className="text-sm font-medium px-5 py-2.5 rounded-full border border-white/20 text-[color:var(--accent-primary)] hover:bg-white/10 transition-all">
                     Sign In
                   </button>
                 </Link>

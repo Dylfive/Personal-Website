@@ -8,6 +8,7 @@ import {
   getUserAlbums,
   addUserAlbum,
   updateUserAlbum,
+  deleteUserAlbum,
   updateAlbumOnGitHub,
 } from '../../lib/albumStore';
 import { enrichAlbumData } from '../../lib/aiEnrichment';
@@ -135,6 +136,22 @@ export default function AlbumIntakeForm({
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred while saving.');
+      setFormState('REVIEW');
+    }
+  };
+
+  // ── Delete (edit-mode only) ──────────────────────────────────────────────────
+  const handleDelete = async () => {
+    setFormState('SUBMITTING');
+    setError(null);
+    try {
+      if (user?.id && originalAlbumName.current) {
+        await deleteUserAlbum(user.id, originalAlbumName.current);
+      }
+      setFormState('SUCCESS');
+      setTimeout(() => onEditComplete?.(), 600);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred while deleting.');
       setFormState('REVIEW');
     }
   };
@@ -285,6 +302,7 @@ export default function AlbumIntakeForm({
                 draft={draft}
                 onSave={handleSave}
                 onBack={isEditMode ? () => onEditComplete?.() : () => setFormState('IDLE')}
+                onDelete={isEditMode ? handleDelete : undefined}
                 isSubmitting={formState === 'SUBMITTING'}
                 backLabel={isEditMode ? 'Cancel' : 'Edit Search'}
                 isEditMode={isEditMode}

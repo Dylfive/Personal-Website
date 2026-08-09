@@ -1,18 +1,21 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Save, ArrowLeft, Disc3, Calendar, Clock, Music, AlertTriangle, Loader2, Frown, Link as LinkIcon } from 'lucide-react';
+import { Save, ArrowLeft, Disc3, Calendar, Clock, Music, AlertTriangle, Loader2, Frown, Link as LinkIcon, Mic2, Trash2 } from 'lucide-react';
 import type { AlbumEntry } from '../../types/album';
 
 interface ReviewScreenProps {
   draft: AlbumEntry;
   onSave: (finalEntry: AlbumEntry) => void;
   onBack: () => void;
+  onDelete?: () => void;
   isSubmitting: boolean;
   backLabel?: string;
   isEditMode?: boolean;
 }
 
-export default function ReviewScreen({ draft, onSave, onBack, isSubmitting, backLabel = 'Edit Search', isEditMode = false }: ReviewScreenProps) {
+export default function ReviewScreen({ draft, onSave, onBack, onDelete, isSubmitting, backLabel = 'Edit Search', isEditMode = false }: ReviewScreenProps) {
+  // Suppress unused parameter lint warning
+  void isEditMode;
   const [editedDraft, setEditedDraft] = useState<AlbumEntry>(draft);
   const [showImagePicker, setShowImagePicker] = useState(false);
   const [isSearchingGoogle, setIsSearchingGoogle] = useState(false);
@@ -203,32 +206,29 @@ export default function ReviewScreen({ draft, onSave, onBack, isSubmitting, back
         </div>
         
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-white/70 mb-2">Track Count</label>
+          <label className="block text-sm font-medium text-white/70">Track Count</label>
           <input
             type="number"
             value={editedDraft.TrackCount}
             onChange={(e) => handleChange('TrackCount', parseInt(e.target.value) || 0)}
-            className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-neon-blue text-white font-mono"
+            className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-[color:var(--accent-secondary)] text-white font-mono"
           />
         </div>
 
-        {/* Tiebreaker / Rank Priority (Edit Mode Only) */}
-        {isEditMode && (
-          <div className="space-y-2 col-span-1 sm:col-span-2">
-            <label className="block text-sm font-medium text-white/70">
-              Tiebreaker Priority <span className="text-xs text-white/40 font-normal">(for albums with same rating, e.g. 1 for your #1 10/10, 2 for #2)</span>
-            </label>
-            <input
-              type="number"
-              min="1"
-              max="999"
-              value={editedDraft.RankOrder ?? ''}
-              onChange={(e) => handleChange('RankOrder', e.target.value ? parseInt(e.target.value) : (undefined as any))}
-              placeholder="e.g. 1 (1st best), 2 (2nd best)..."
-              className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-accent-amber text-white font-mono text-sm"
-            />
-          </div>
-        )}
+        {/* Top Song */}
+        <div className="space-y-2 col-span-1 sm:col-span-2">
+          <label className="flex items-center gap-2 text-sm font-medium text-white/70">
+            <Mic2 className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
+            Top Song <span className="text-xs text-white/35 font-normal">(optional — your favourite track on this album)</span>
+          </label>
+          <input
+            type="text"
+            value={editedDraft.TopSong ?? ''}
+            onChange={(e) => handleChange('TopSong', e.target.value)}
+            placeholder="e.g. Comfortably Numb"
+            className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-[color:var(--accent-primary)] text-white"
+          />
+        </div>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4 mt-8">
@@ -241,6 +241,23 @@ export default function ReviewScreen({ draft, onSave, onBack, isSubmitting, back
           <ArrowLeft className="w-5 h-5" />
           {backLabel}
         </button>
+
+        {isEditMode && onDelete && (
+          <button
+            type="button"
+            onClick={() => {
+              if (window.confirm(`Are you sure you want to delete "${editedDraft.Album}" from your collection?`)) {
+                onDelete();
+              }
+            }}
+            disabled={isSubmitting}
+            className="flex-1 flex items-center justify-center gap-2 py-4 rounded-xl font-bold border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all disabled:opacity-50"
+          >
+            <Trash2 className="w-5 h-5" />
+            Delete Album
+          </button>
+        )}
+
         <button
           type="button"
           onClick={() => onSave(editedDraft)}

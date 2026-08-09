@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import {
-  X, Music, Star, Trophy, Calendar, Disc3, TrendingUp, Hash, Settings, Check
+  X, Music, Star, Trophy, Calendar, Disc3, TrendingUp, Hash, Settings, Check, LayoutGrid, Mic2
 } from 'lucide-react';
 import { getUserAlbumsForProfile, setUserVisibleStats, ALL_STAT_KEYS, DEFAULT_VISIBLE_STATS } from '../lib/profileStore';
 import type { AlbumEntry } from '../types/album';
@@ -69,21 +70,18 @@ function topArtist(albums: AlbumEntry[]): string {
 // ─── Album Cover (mini) ───────────────────────────────────────────────────────
 function MiniCover({ album, rank }: { album: AlbumEntry; rank: number }) {
   const hasCover = album.CoverArt && album.CoverArt !== 'Not Found';
-  const rankColors = ['#f5a623', '#94a3b8', '#cd7c2f'];
+  const rankColors = ['var(--accent-primary)', '#94a3b8', '#cd7c2f'];
   const rankLabels = ['🥇', '🥈', '🥉'];
 
   return (
     <div className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.04] border border-white/[0.07] hover:bg-white/[0.07] transition-colors">
-      {/* Cover */}
       <div className="relative w-14 h-14 rounded-lg overflow-hidden flex-shrink-0">
         {hasCover ? (
           <img
             src={album.CoverArt}
             alt={String(album.Album)}
             className="w-full h-full object-cover"
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = 'none';
-            }}
+            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
           />
         ) : (
           <div
@@ -93,7 +91,6 @@ function MiniCover({ album, rank }: { album: AlbumEntry; rank: number }) {
             <Music className="w-5 h-5 text-white/30" />
           </div>
         )}
-        {/* Rank badge */}
         <div
           className="absolute top-0.5 left-0.5 w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-black"
           style={{ background: 'rgba(0,0,0,0.75)' }}
@@ -102,20 +99,19 @@ function MiniCover({ album, rank }: { album: AlbumEntry; rank: number }) {
         </div>
       </div>
 
-      {/* Info */}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-bold text-white truncate">{String(album.Album)}</p>
         <p className="text-xs text-white/50 truncate flex items-center gap-2">
           {album.Artist}
-          {album.RankOrder !== undefined && album.RankOrder !== null && (
-            <span className="text-[9px] font-mono font-bold text-accent-amber bg-accent-amber/10 px-1.5 py-0.2 rounded border border-accent-amber/20">
-              Rank #{album.RankOrder}
-            </span>
-          )}
         </p>
+        {album.TopSong && (
+          <p className="text-[11px] text-white/70 italic truncate flex items-center gap-1 mt-0.5">
+            <Mic2 className="w-3 h-3 text-[color:var(--accent-primary)] shrink-0" />
+            "{album.TopSong}"
+          </p>
+        )}
       </div>
 
-      {/* Rating */}
       <div
         className="flex-shrink-0 text-sm font-black px-2 py-1 rounded-lg"
         style={{ background: `${rankColors[rank] ?? '#ffffff'}22`, color: rankColors[rank] ?? '#ffffff' }}
@@ -138,7 +134,7 @@ function StatPill({
 }) {
   return (
     <div className="flex flex-col gap-1 p-3 rounded-xl bg-white/[0.04] border border-white/[0.07] text-center">
-      <div className="flex justify-center text-accent-amber">{icon}</div>
+      <div className="flex justify-center text-[color:var(--accent-primary)]">{icon}</div>
       <p className="text-[10px] uppercase tracking-widest text-white/35 font-bold">{label}</p>
       <p className="text-sm font-bold text-white leading-tight truncate">{value}</p>
     </div>
@@ -156,6 +152,7 @@ export default function UserProfileModal({
   onClose,
   onStatsUpdated,
 }: UserProfileModalProps) {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const isOwner = user?.id === userId;
 
@@ -198,6 +195,11 @@ export default function UserProfileModal({
 
   const isVisible = (key: string) => visibleStats.includes(key);
 
+  const handleGoToWall = () => {
+    onClose();
+    navigate(`/wall/${userId}`);
+  };
+
   return (
     <AnimatePresence>
       <motion.div
@@ -218,10 +220,8 @@ export default function UserProfileModal({
           className="glass-panel rounded-3xl w-full max-w-md overflow-hidden border border-white/10 relative"
           style={{ maxHeight: '90vh', overflowY: 'auto' }}
         >
-          {/* Amber top line */}
           <div className="amber-shimmer-top" />
 
-          {/* Close button */}
           <button
             onClick={onClose}
             className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-white/40 hover:text-white transition-all"
@@ -229,14 +229,13 @@ export default function UserProfileModal({
             <X className="w-4 h-4" />
           </button>
 
-          {/* Settings Toggle button if owner */}
           {isOwner && (
             <button
               onClick={() => setShowSettings(!showSettings)}
               title="Customize Displayed Stats"
               className={`absolute top-4 right-14 z-10 px-2.5 py-1 rounded-full border text-xs font-bold flex items-center gap-1.5 transition-all ${
                 showSettings
-                  ? 'bg-accent-amber text-black border-accent-amber'
+                  ? 'bg-[color:var(--accent-primary)] text-white border-[color:var(--accent-primary)]'
                   : 'bg-white/5 text-white/60 hover:text-white border-white/10 hover:bg-white/10'
               }`}
             >
@@ -247,18 +246,17 @@ export default function UserProfileModal({
 
           {/* Header */}
           <div className="p-6 pb-4 flex items-center gap-4">
-            {/* Avatar */}
             <div
               className="w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-black text-white flex-shrink-0 border-2"
               style={{ background: `${color}22`, borderColor: `${color}55`, color }}
             >
               {nickname[0]?.toUpperCase()}
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <h2 className="text-xl font-serif font-bold text-white truncate flex items-center gap-2">
                 {nickname}
                 {isOwner && (
-                  <span className="text-[9px] font-black uppercase text-accent-amber bg-accent-amber/10 px-1.5 py-0.5 rounded-full border border-accent-amber/20">
+                  <span className="text-[9px] font-black uppercase text-[color:var(--accent-primary)] bg-white/10 px-1.5 py-0.5 rounded-full border border-white/20">
                     You
                   </span>
                 )}
@@ -270,6 +268,17 @@ export default function UserProfileModal({
             </div>
           </div>
 
+          {/* User's Album Wall Button */}
+          <div className="px-6 pb-4">
+            <button
+              onClick={handleGoToWall}
+              className="w-full py-2.5 rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 text-xs font-bold text-white flex items-center justify-center gap-2 transition-all shadow-sm"
+            >
+              <LayoutGrid className="w-4 h-4 text-[color:var(--accent-primary)]" />
+              View {nickname}'s Album Wall
+            </button>
+          </div>
+
           {/* Settings Customization Panel */}
           {showSettings && (
             <motion.div
@@ -279,7 +288,7 @@ export default function UserProfileModal({
               className="px-6 pb-4 border-b border-white/10 bg-black/30"
             >
               <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-3">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-accent-amber flex items-center gap-1.5">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-[color:var(--accent-primary)] flex items-center gap-1.5">
                   <Settings className="w-3.5 h-3.5" /> Select Displayed Stats
                 </h4>
                 <p className="text-[11px] text-white/40">
@@ -294,12 +303,12 @@ export default function UserProfileModal({
                         onClick={() => toggleStat(key)}
                         className={`flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
                           active
-                            ? 'bg-accent-amber/20 border-accent-amber/40 text-white'
+                            ? 'bg-white/15 border-white/30 text-white'
                             : 'bg-white/5 border-white/10 text-white/40 hover:text-white/70'
                         }`}
                       >
                         <span className="truncate">{label}</span>
-                        {active && <Check className="w-3.5 h-3.5 text-accent-amber shrink-0 ml-1" />}
+                        {active && <Check className="w-3.5 h-3.5 text-[color:var(--accent-primary)] shrink-0 ml-1" />}
                       </button>
                     );
                   })}
@@ -352,7 +361,7 @@ export default function UserProfileModal({
             <div>
               <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-white/40 mb-3 flex items-center justify-between">
                 <span className="flex items-center gap-2">
-                  <Trophy className="w-3.5 h-3.5 text-accent-amber" />
+                  <Trophy className="w-3.5 h-3.5 text-[color:var(--accent-primary)]" />
                   Top Albums
                 </span>
                 <span className="text-[10px] text-white/30 font-normal">
@@ -385,7 +394,7 @@ export default function UserProfileModal({
             {!loading && albums.length > 0 && (
               <div>
                 <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-white/40 mb-3 flex items-center gap-2">
-                  <Disc3 className="w-3.5 h-3.5 text-accent-amber" />
+                  <Disc3 className="w-3.5 h-3.5 text-[color:var(--accent-primary)]" />
                   Detailed Stats
                 </h3>
                 <div className="grid grid-cols-2 gap-2 text-sm">

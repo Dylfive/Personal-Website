@@ -11,5 +11,6 @@ export interface AlbumEntry {
   ExactReleaseDate?: string;
   RankOrder?: number;
   IsHidden?: boolean;
+  TopSong?: string;
 }
 
