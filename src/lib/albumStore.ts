@@ -244,14 +244,20 @@ export async function updateUserAlbumRankOrders(
 
   for (const item of items) {
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('user_albums')
         .update({ rank_order: item.rankOrder })
         .eq('user_id', userId)
-        .eq('album', String(item.album).trim());
+        .eq('album', String(item.album).trim())
+        .select('album');
       if (error) {
         allOk = false;
         console.error('updateUserAlbumRankOrders failed for', item.album, error.message);
+      } else if (!data || data.length === 0) {
+        // Zero rows matched the album name — surface this instead of silently
+        // "succeeding" with nothing persisted.
+        allOk = false;
+        console.error('updateUserAlbumRankOrders matched 0 rows for', item.album, '— rank not saved');
       }
     } catch (err) {
       allOk = false;

@@ -435,9 +435,13 @@ const AlbumList = ({
   // until the user drags, at which point Reorder supplies the new order live.
   const [listOrder, setListOrder] = useState<string[]>([]);
   const listOrderRef = useRef<string[]>([]);
+  const [persistError, setPersistError] = useState<string | null>(null);
 
   const ratingOfKey = (key: string): string | null => {
-    const a = albums.find((x) => albumKeyOf(x) === key);
+    // Closures read the latest filteredAndSorted at call time (drag handlers
+    // run well after render), and with an active reorder search is cleared, so
+    // this is the full collection.
+    const a = filteredAndSorted.find((x) => albumKeyOf(x) === key);
     return a ? a.Rating.toFixed(1) : null;
   };
 
@@ -462,23 +466,41 @@ const AlbumList = ({
     const rating = ratingOfKey(movedKey);
     if (!rating) return;
 
-    // Only allow moves that stay inside the same rating group — anything else
-    // would fight the rating sort, so it snaps right back.
-    const newIdx = newKeys.indexOf(movedKey);
-    const prevRating = newIdx > 0 ? ratingOfKey(newKeys[newIdx - 1]) : rating;
-    const nextRating = newIdx < newKeys.length - 1 ? ratingOfKey(newKeys[newIdx + 1]) : rating;
-    if (prevRating !== rating || nextRating !== rating) return;
+    // Respect rating-group boundaries. Reorder lets the user drop anywhere, so
+    // clamp the dragged album to the edge of its own rating block instead of
+    // rejecting the drop — otherwise moving an album to the top/bottom of a
+    // small tie group (its most natural position) would silently do nothing.
+    const blockStart = oldKeys.findIndex((k) => ratingOfKey(k) === rating);
+    let blockEnd = oldKeys.length - 1;
+    for (let i = oldKeys.length - 1; i >= 0; i--) {
+      if (ratingOfKey(oldKeys[i]) === rating) {
+        blockEnd = i;
+        break;
+      }
+    }
+    const origIdx = oldKeys.indexOf(movedKey);
+    const dropIdx = newKeys.indexOf(movedKey);
+    const finalIdx = Math.max(blockStart, Math.min(dropIdx, blockEnd));
+    if (finalIdx === origIdx) return; // clamped back to where it came from
+
+    // Rebuild the order with the moved album at its clamped position.
+    const withoutMoved = oldKeys.filter((k) => k !== movedKey);
+    const finalKeys = [...withoutMoved];
+    finalKeys.splice(finalIdx, 0, movedKey);
 
     // Apply optimistically so the row glides into place, then persist quietly.
-    listOrderRef.current = newKeys;
-    setListOrder(newKeys);
-    void persistReorder(newKeys, rating);
+    listOrderRef.current = finalKeys;
+    setListOrder(finalKeys);
+    void persistReorder(finalKeys, rating);
   };
 
   const persistReorder = async (orderedKeys: string[], rating: string) => {
     if (!user?.id) return;
+    // filteredAndSorted is the exact source of the displayed keys (and equals the
+    // full list because reorder is gated to a cleared search), so key lookups
+    // are guaranteed to match.
     const ordered = orderedKeys
-      .map((key) => albums.find((a) => albumKeyOf(a) === key))
+      .map((key) => filteredAndSorted.find((a) => albumKeyOf(a) === key))
       .filter((a): a is Album => !!a);
 
     // Contiguous rating group in the new order.
@@ -510,6 +532,9 @@ const AlbumList = ({
       const ok = await updateUserAlbumRankOrders(user.id, toWrite);
       if (!ok) {
         console.error('Reorder persisted partially — albums are safe, order may need a retry');
+        setPersistError("Couldn't save the new order to the server. Check the console for details, then drop it again.");
+      } else {
+        setPersistError(null);
       }
       onUpdateAlbums?.();
     }
@@ -657,6 +682,14 @@ const AlbumList = ({
           <p className="text-white/40 text-xs font-mono">{filteredAndSorted.length} results</p>
         </div>
       </div>
+
+      {persistError && (
+        <div className="px-6 pb-4 -mt-2">
+          <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+            {persistError}
+          </p>
+        </div>
+      )}
 
       {/* List Area */}
       <div className="flex-1 overflow-y-auto p-4 min-h-[400px]">
