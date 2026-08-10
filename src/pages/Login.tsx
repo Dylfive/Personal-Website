@@ -175,18 +175,11 @@ export default function Login() {
               </span>
             </div>
             <h1 className="text-4xl sm:text-5xl font-serif font-black text-white leading-tight mb-4">
-              Just a nice place to keep{' '}
-              <span className="gradient-text">track of your albums.</span>
+              Rate all your <span className="gradient-text">albums</span>
             </h1>
             <p className="text-white/40 text-base leading-relaxed max-w-sm">
-              Rate everything you've listened to. Browse your collection. See it all laid out exactly how it deserves.
+              Rate everything you've listened to. Browse your collection. Discover new music!
             </p>
-
-            {/* Coming soon chip */}
-            <div className="mt-6 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-accent-amber/10 border border-accent-amber/20">
-              <span className="w-1.5 h-1.5 rounded-full bg-accent-amber animate-pulse" />
-              <span className="text-xs text-accent-amber/80 font-medium">AlbumWall visual gallery — coming soon</span>
-            </div>
           </motion.div>
 
           {/* ── RIGHT PANEL: Auth form ── */}

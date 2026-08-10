@@ -8,6 +8,7 @@ import { supabase } from '../lib/supabase';
 import type { AlbumEntry } from '../types/album';
 import rawAlbumData from '../data/Album-Data.json';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { updateUserAlbum } from '../lib/albumStore';
 
 type SortOption = 'rating' | 'year_desc' | 'year_asc' | 'title' | 'artist';
@@ -255,6 +256,8 @@ const InlineWallEditor = ({
 // ─── Album List (Editable on Wall) ────────────────────────────────────────────
 const AlbumList = ({ albums, onReload }: { albums: AlbumEntry[]; onReload?: () => void }) => {
   const { user } = useAuth();
+  const { OWNER_EMAIL } = useTheme();
+  const canEdit = !!user && user.email === OWNER_EMAIL;
   const [sortBy, setSortBy] = useState<SortOption>('rating');
   const [searchQuery, setSearchQuery] = useState('');
   const [editingKey, setEditingKey] = useState<string | null>(null);
@@ -369,15 +372,15 @@ const AlbumList = ({ albums, onReload }: { albums: AlbumEntry[]; onReload?: () =
                 ) : (
                   <div className="flex-1 min-w-0 flex flex-col justify-center">
                     <h4
-                      onClick={() => user && setEditingKey(itemKey)}
-                      className={`text-base sm:text-lg font-bold text-white truncate ${user ? 'hover:underline cursor-pointer' : ''}`}
-                      title={user ? 'Click to edit title & artist' : undefined}
+                      onClick={() => canEdit && setEditingKey(itemKey)}
+                      className={`text-base sm:text-lg font-bold text-white truncate ${canEdit ? 'hover:underline cursor-pointer' : ''}`}
+                      title={canEdit ? 'Click to edit title & artist' : undefined}
                     >
                       {String(album.Album)}
                     </h4>
                     <p
-                      onClick={() => user && setEditingKey(itemKey)}
-                      className={`text-xs sm:text-sm text-[color:var(--accent-primary)] truncate ${user ? 'hover:underline cursor-pointer' : ''}`}
+                      onClick={() => canEdit && setEditingKey(itemKey)}
+                      className={`text-xs sm:text-sm text-[color:var(--accent-primary)] truncate ${canEdit ? 'hover:underline cursor-pointer' : ''}`}
                     >
                       {album.Artist}
                     </p>
@@ -415,12 +418,12 @@ const AlbumList = ({ albums, onReload }: { albums: AlbumEntry[]; onReload?: () =
                   </a>
                 )}
 
-                {/* Edit Button on Album Wall */}
-                {user && (
+                {/* Edit Button on Album Wall — owner only, always visible */}
+                {canEdit && (
                   <button
                     onClick={() => setEditingKey(itemKey)}
                     title="Edit album title or artist"
-                    className="flex-shrink-0 p-2 rounded-full border border-white/10 text-white/30 hover:text-[color:var(--accent-primary)] hover:border-[color:var(--accent-primary)]/40 hover:bg-white/5 opacity-0 group-hover:opacity-100 transition-all duration-200"
+                    className="flex-shrink-0 p-2 rounded-full border border-white/10 text-white/30 hover:text-[color:var(--accent-primary)] hover:border-[color:var(--accent-primary)]/40 hover:bg-white/5 transition-all duration-200"
                   >
                     <Pencil className="w-4 h-4" />
                   </button>
@@ -539,9 +542,6 @@ export default function OwnerWallPage() {
           <h1 className="text-4xl sm:text-5xl font-serif font-black mb-3">
             Album <span className="gradient-text">Wall</span>
           </h1>
-          <p className="text-white/40 text-sm max-w-sm mx-auto leading-relaxed">
-            A curated collection of every album rated — {albums.length} and counting.
-          </p>
         </div>
 
         {/* Dashboard layout */}

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, LogOut, Disc3, Music, Users, LayoutGrid, Sparkles, FlaskConical } from 'lucide-react';
+import { Menu, X, LogOut, Disc3, Music, Users, LayoutGrid, Sparkles } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -10,6 +11,29 @@ const Navbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut, nickname } = useAuth();
+
+  const [dylanId, setDylanId] = useState<string | null>(null);
+
+  // Resolve Dylan's public user id so "Dylan's Wall" can link to his wall grid —
+  // user_profiles has a public read policy, so this works while logged out.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('user_profiles')
+          .select('user_id')
+          .ilike('nickname', 'Dylan')
+          .limit(1);
+        if (!cancelled && data && data.length > 0) {
+          setDylanId(data[0].user_id as string);
+        }
+      } catch {
+        // ignore — fall back to /wall
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 24);
@@ -30,6 +54,9 @@ const Navbar = () => {
     : user?.email?.[0]?.toUpperCase() ?? '?';
   const displayName = nickname ?? user?.email?.split('@')[0] ?? '';
   const isLoginPage = location.pathname === '/login' || location.pathname === '/';
+  const isMyWall = !!user?.id && location.pathname === `/wall/${user.id}`;
+  const dylanWallPath = dylanId ? `/wall/${dylanId}` : '/wall';
+  const isDylanWall = dylanId !== null && location.pathname === `/wall/${dylanId}`;
 
   return (
     <nav
@@ -67,11 +94,11 @@ const Navbar = () => {
             Dylan's List
           </Link>
 
-          {/* Dylan's Wall */}
+          {/* Dylan's Wall — public, links to Dylan's wall grid */}
           <Link
-            to="/wall"
+            to={dylanWallPath}
             className={`flex items-center gap-1.5 text-sm font-medium transition-colors hover:text-white ${
-              location.pathname === '/wall' ? 'text-[color:var(--accent-primary)]' : 'text-white/50'
+              isDylanWall ? 'text-[color:var(--accent-primary)]' : 'text-white/50'
             }`}
           >
             <LayoutGrid className="w-4 h-4" />
@@ -91,15 +118,15 @@ const Navbar = () => {
                 My Collection
               </Link>
 
-              {/* Experiment */}
+              {/* My Wall */}
               <Link
-                to="/experiment"
+                to={user?.id ? `/wall/${user.id}` : '/wall'}
                 className={`flex items-center gap-1.5 text-sm font-medium transition-colors hover:text-white ${
-                  location.pathname === '/experiment' ? 'text-accent-amber' : 'text-white/50'
+                  isMyWall ? 'text-[color:var(--accent-primary)]' : 'text-white/50'
                 }`}
               >
-                <FlaskConical className="w-4 h-4" />
-                Experiment
+                <LayoutGrid className="w-4 h-4" />
+                My Wall
               </Link>
 
               {/* Other Walls (leaderboard) */}
@@ -110,7 +137,7 @@ const Navbar = () => {
                 }`}
               >
                 <Users className="w-4 h-4" />
-                Other Walls
+                Other Users
               </Link>
 
               {/* User chip */}
@@ -169,9 +196,9 @@ const Navbar = () => {
             </Link>
 
             <Link
-              to="/wall"
+              to={dylanWallPath}
               className={`flex items-center gap-2 text-base font-medium transition-colors ${
-                location.pathname === '/wall'
+                isDylanWall
                   ? 'text-[color:var(--accent-primary)]'
                   : 'text-white/70 hover:text-[color:var(--accent-primary)]'
               }`}
@@ -188,20 +215,20 @@ const Navbar = () => {
                   <Sparkles className="w-5 h-5" /> My Collection
                 </Link>
                 <Link
-                  to="/experiment"
+                  to={user?.id ? `/wall/${user.id}` : '/wall'}
                   className={`flex items-center gap-2 text-base font-medium transition-colors ${
-                    location.pathname === '/experiment'
-                      ? 'text-accent-amber'
-                      : 'text-white/70 hover:text-accent-amber'
+                    isMyWall
+                      ? 'text-[color:var(--accent-primary)]'
+                      : 'text-white/70 hover:text-[color:var(--accent-primary)]'
                   }`}
                 >
-                  <FlaskConical className="w-5 h-5" /> Experiment
+                  <LayoutGrid className="w-5 h-5" /> My Wall
                 </Link>
                 <Link
                   to="/leaderboard"
                   className="flex items-center gap-2 text-base font-medium text-white/70 hover:text-[color:var(--accent-primary)] transition-colors"
                 >
-                  <Users className="w-5 h-5" /> Other Walls
+                  <Users className="w-5 h-5" /> Other Users
                 </Link>
                 <div className="pt-4 border-t border-white/[0.06] flex items-center justify-between">
                   <span className="text-white/40 text-sm truncate max-w-[200px]">

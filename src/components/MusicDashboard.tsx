@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronRight, ChevronLeft, Music, ExternalLink, Star, Calendar, Clock,
   Trophy, Disc3, Search, ArrowUpDown, BarChart2, Plus, Pencil,
-  Mic2, Layers, X, ArrowUp, ArrowDown, Palette, Eye
+  Mic2, GripVertical, Palette, Eye
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserAlbums, updateUserAlbum } from '../lib/albumStore';
@@ -344,123 +344,6 @@ const RatingsChart = ({ albums, onRatingClick }: { albums: Album[], onRatingClic
   );
 };
 
-// ─── Interactive Tiebreaker Modal ─────────────────────────────────────────────
-interface TiebreakerModalProps {
-  rating: number;
-  tiedAlbums: Album[];
-  onClose: () => void;
-  onSaveRanks: (reordered: Album[]) => void;
-}
-
-const TiebreakerModal: React.FC<TiebreakerModalProps> = ({ rating, tiedAlbums, onClose, onSaveRanks }) => {
-  const [list, setList] = useState<Album[]>([...tiedAlbums]);
-  const [saving, setSaving] = useState(false);
-
-  const moveItem = (index: number, direction: 'up' | 'down') => {
-    const newIdx = direction === 'up' ? index - 1 : index + 1;
-    if (newIdx < 0 || newIdx >= list.length) return;
-    const updated = [...list];
-    const [moved] = updated.splice(index, 1);
-    updated.splice(newIdx, 0, moved);
-    setList(updated);
-  };
-
-  const handleSave = async () => {
-    setSaving(true);
-    // Assign rank_order 1..N based on new array order
-    const reordered = list.map((alb, i) => ({ ...alb, RankOrder: i + 1 }));
-    await onSaveRanks(reordered);
-    setSaving(false);
-    onClose();
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        className="glass-panel rounded-3xl p-6 border border-white/20 max-w-lg w-full space-y-4"
-      >
-        <div className="flex items-center justify-between border-b border-white/10 pb-3">
-          <div className="flex items-center gap-2">
-            <Layers className="w-5 h-5 text-[color:var(--accent-primary)]" />
-            <h3 className="text-lg font-bold text-white">
-              Tiebreaker: {rating.toFixed(1)} / 10
-            </h3>
-          </div>
-          <button onClick={onClose} className="p-1 rounded-full text-white/40 hover:text-white hover:bg-white/10">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <p className="text-xs text-white/60">
-          Reorder the albums sharing a rating of <span className="font-bold text-white">{rating.toFixed(1)}</span> to break ties in your rankings.
-        </p>
-
-        <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
-          {list.map((album, idx) => (
-            <div
-              key={`${album.Album}-${album.Artist}`}
-              className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10"
-            >
-              <span className="w-6 text-center text-xs font-mono font-bold text-[color:var(--accent-primary)]">
-                #{idx + 1}
-              </span>
-
-              {album.CoverArt ? (
-                <img src={album.CoverArt} alt="" className="w-10 h-10 rounded object-cover flex-shrink-0" />
-              ) : (
-                <div className="w-10 h-10 rounded bg-white/10 flex items-center justify-center flex-shrink-0">
-                  <Music className="w-4 h-4 text-white/30" />
-                </div>
-              )}
-
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-white truncate">{String(album.Album)}</p>
-                <p className="text-xs text-white/50 truncate">{album.Artist}</p>
-              </div>
-
-              <div className="flex items-center gap-1">
-                <button
-                  disabled={idx === 0}
-                  onClick={() => moveItem(idx, 'up')}
-                  className="p-1.5 rounded-lg border border-white/10 text-white/60 hover:text-white disabled:opacity-20 hover:bg-white/10 transition-colors"
-                >
-                  <ArrowUp className="w-4 h-4" />
-                </button>
-                <button
-                  disabled={idx === list.length - 1}
-                  onClick={() => moveItem(idx, 'down')}
-                  className="p-1.5 rounded-lg border border-white/10 text-white/60 hover:text-white disabled:opacity-20 hover:bg-white/10 transition-colors"
-                >
-                  <ArrowDown className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="flex justify-end gap-3 pt-2 border-t border-white/10">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-xl text-xs font-bold border border-white/10 text-white/60 hover:text-white hover:bg-white/5"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="btn-primary px-5 py-2 text-xs font-bold rounded-xl flex items-center gap-2"
-          >
-            {saving ? 'Saving...' : 'Save Ranking Order'}
-          </button>
-        </div>
-      </motion.div>
-    </div>
-  );
-};
-
 // ─── Inline Title/Artist Editor ───────────────────────────────────────────────
 const InlineAlbumEditor = ({
   album,
@@ -533,9 +416,8 @@ const AlbumList = ({
   });
 
   const [editingKey, setEditingKey] = useState<string | null>(null);
-  const [tiebreakerRating, setTiebreakerRating] = useState<number | null>(null);
 
-  // Find tied albums for tiebreaker
+  // Find albums tied at the same rating (for drag-to-reorder tiebreaker)
   const tiedGroups = useMemo(() => {
     const map: Record<string, Album[]> = {};
     albums.forEach((a) => {
@@ -545,6 +427,75 @@ const AlbumList = ({
     });
     return map;
   }, [albums]);
+
+  // ─── Drag-to-reorder for tied ratings ────────────────────────────────────────
+  const [dragKey, setDragKey] = useState<string | null>(null);
+  const [overKey, setOverKey] = useState<string | null>(null);
+
+  const albumKeyOf = (a: Album) => `${String(a.Album)}-${a.Artist}`;
+
+  const dragRating = (key: string): string | null => {
+    const src = filteredAndSorted.find((a) => albumKeyOf(a) === key);
+    return src ? src.Rating.toFixed(1) : null;
+  };
+
+  const handleDragStart = (e: React.DragEvent<HTMLButtonElement>, key: string) => {
+    e.dataTransfer.setData('text/plain', key);
+    e.dataTransfer.effectAllowed = 'move';
+    setDragKey(key);
+  };
+
+  const handleDragOver = (e: React.DragEvent, key: string) => {
+    if (!dragKey || dragKey === key) return;
+    if (dragRating(dragKey) !== dragRating(key)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setOverKey(key);
+  };
+
+  const handleReorderTo = async (dropKey: string) => {
+    const from = filteredAndSorted.findIndex((a) => albumKeyOf(a) === dragKey);
+    const to = filteredAndSorted.findIndex((a) => albumKeyOf(a) === dropKey);
+    if (from === -1 || to === -1 || from === to || !dragKey || !user?.id) {
+      setDragKey(null);
+      setOverKey(null);
+      return;
+    }
+    const src = filteredAndSorted[from];
+    const dst = filteredAndSorted[to];
+    if (src.Rating.toFixed(1) !== dst.Rating.toFixed(1)) {
+      setDragKey(null);
+      setOverKey(null);
+      return;
+    }
+
+    const next = [...filteredAndSorted];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+
+    // Reassign rank_order within each rating group using the new manual order
+    let groupKey: string | null = null;
+    let rank = 0;
+    const updated = next.map((a) => {
+      const key = a.Rating.toFixed(1);
+      if (key !== groupKey) { groupKey = key; rank = 1; } else { rank += 1; }
+      return { ...a, RankOrder: rank };
+    });
+
+    const changed = updated.filter(
+      (a, i) => a.RankOrder !== (filteredAndSorted[i]?.RankOrder ?? null)
+    );
+
+    if (changed.length > 0) {
+      for (const alb of changed) {
+        await updateUserAlbum(user.id, String(alb.Album), alb);
+      }
+      onUpdateAlbums?.();
+    }
+
+    setDragKey(null);
+    setOverKey(null);
+  };
 
   const toggleField = (key: keyof ListInfoToggles) => {
     setToggles((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -580,14 +531,6 @@ const AlbumList = ({
     if (!user?.id) return;
     await updateUserAlbum(user.id, originalAlbumName, updated);
     setEditingKey(null);
-    onUpdateAlbums?.();
-  };
-
-  const handleSaveTiedRanks = async (reordered: Album[]) => {
-    if (!user?.id) return;
-    for (const alb of reordered) {
-      await updateUserAlbum(user.id, String(alb.Album), alb);
-    }
     onUpdateAlbums?.();
   };
 
@@ -693,7 +636,7 @@ const AlbumList = ({
               const isEditingThis = editingKey === itemKey;
 
               const tiedCount = tiedGroups[album.Rating.toFixed(1)]?.length ?? 0;
-              const showTiebreakerBtn = user && tiedCount > 1;
+              const isMoveable = !!user && sortBy === 'rating' && tiedCount > 1;
 
               return (
                 <motion.div
@@ -703,7 +646,11 @@ const AlbumList = ({
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                   transition={{ duration: 0.2, delay: idx > 20 ? 0 : idx * 0.05 }}
-                  className="glass-panel p-3 rounded-2xl flex gap-4 items-center group hover:bg-white/10 transition-colors"
+                  className={`glass-panel p-3 rounded-2xl flex gap-4 items-center group transition-colors ${
+                    overKey === itemKey && dragKey && dragKey !== itemKey
+                      ? 'bg-white/10 ring-1 ring-[color:var(--accent-primary)]/50'
+                      : 'hover:bg-white/10'
+                  } ${dragKey === itemKey ? 'opacity-50' : ''}`}
                 >
                   <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden flex-shrink-0">
                     {hasCover ? (
@@ -760,18 +707,6 @@ const AlbumList = ({
                         <div className="flex items-center gap-1">
                           <Star className="w-3 h-3 text-[color:var(--accent-primary)] fill-[color:var(--accent-primary)]" />
                           <span className="text-xs font-bold text-white">{album.Rating.toFixed(1)}</span>
-
-                          {/* Interactive Tiebreaker Button */}
-                          {showTiebreakerBtn && (
-                            <button
-                              onClick={() => setTiebreakerRating(album.Rating)}
-                              title="Resolve rank tie with other albums"
-                              className="text-[10px] font-bold ml-1.5 bg-white/10 hover:bg-white/20 text-white/80 px-2 py-0.5 rounded-full border border-white/20 flex items-center gap-1 transition-colors"
-                            >
-                              <Layers className="w-2.5 h-2.5 text-[color:var(--accent-primary)]" />
-                              Tiebreaker ({tiedCount})
-                            </button>
-                          )}
                         </div>
 
                         {toggles.year && (
@@ -818,12 +753,32 @@ const AlbumList = ({
                     </a>
                   )}
 
+                  {/* Drag-to-reorder handle for tied ratings */}
+                  {isMoveable && (
+                    <button
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, itemKey)}
+                      onDragOver={(e) => handleDragOver(e, itemKey)}
+                      onDrop={(e) => { e.preventDefault(); void handleReorderTo(itemKey); }}
+                      onDragEnd={() => { setDragKey(null); setOverKey(null); }}
+                      title="Drag to reorder albums tied at this rating"
+                      aria-label="Drag to reorder tied albums"
+                      className={`flex-shrink-0 p-2 rounded-full border cursor-grab active:cursor-grabbing transition-all duration-200 ${
+                        overKey === itemKey
+                          ? 'border-[color:var(--accent-primary)]/70 bg-white/10 text-[color:var(--accent-primary)]'
+                          : 'border-white/10 text-white/30 hover:text-[color:var(--accent-primary)] hover:border-[color:var(--accent-primary)]/40'
+                      }`}
+                    >
+                      <GripVertical className="w-4 h-4" />
+                    </button>
+                  )}
+
                   {/* Edit button */}
                   {onEditAlbum && (
                     <button
                       onClick={(e) => { e.stopPropagation(); onEditAlbum(album); }}
                       title="Edit album"
-                      className="flex-shrink-0 p-2 rounded-full border border-white/10 text-white/30 hover:text-[color:var(--accent-primary)] hover:border-[color:var(--accent-primary)]/40 hover:bg-white/5 opacity-0 group-hover:opacity-100 transition-all duration-200"
+                      className="flex-shrink-0 p-2 rounded-full border border-white/10 text-white/30 hover:text-[color:var(--accent-primary)] hover:border-[color:var(--accent-primary)]/40 hover:bg-white/5 transition-all duration-200"
                     >
                       <Pencil className="w-4 h-4" />
                     </button>
@@ -839,16 +794,6 @@ const AlbumList = ({
           )}
         </AnimatePresence>
       </div>
-
-      {/* Tiebreaker Modal */}
-      {tiebreakerRating !== null && (
-        <TiebreakerModal
-          rating={tiebreakerRating}
-          tiedAlbums={tiedGroups[tiebreakerRating.toFixed(1)] ?? []}
-          onClose={() => setTiebreakerRating(null)}
-          onSaveRanks={handleSaveTiedRanks}
-        />
-      )}
     </div>
   );
 };
