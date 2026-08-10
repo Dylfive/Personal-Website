@@ -233,35 +233,40 @@ export async function updateUserAlbum(
  */
 export async function updateUserAlbumRankOrders(
   userId: string,
-  items: { album: string; rankOrder: number; entry?: AlbumEntry }[]
+  items: { album: string; rankOrder: number; oldRankOrder?: number | null; entry?: AlbumEntry }[]
 ): Promise<{ ok: boolean; error?: string }> {
   let ok = true;
   let lastError: string | undefined;
 
   for (const item of items) {
+    const name = String(item.album).trim();
+    if (item.oldRankOrder === item.rankOrder) continue; // nothing changed
+
     try {
-      // Fast path: a single, atomic in-place UPDATE.
-      const { data, error } = await supabase
+      // 1) Fast path: atomic in-place UPDATE scoped to the exact pre-drag row
+      //    (album name + the rank it had before the drag). Never touches any
+      //    other row.
+      let q = supabase
         .from('user_albums')
         .update({ rank_order: item.rankOrder })
         .eq('user_id', userId)
-        .eq('album', String(item.album).trim())
-        .select('album');
+        .eq('album', name);
+      q = item.oldRankOrder != null ? q.eq('rank_order', item.oldRankOrder) : q.is('rank_order', null);
+      const { data, error } = await q.select('album');
 
-      const updatedRows = Array.isArray(data) ? data.length : 0;
-      if (!error && updatedRows > 0) continue;
+      if (!error && Array.isArray(data) && data.length > 0) continue;
 
-      // UPDATE is unavailable (e.g. RLS blocks it) or matched zero rows — so use
-      // a SAFE replace: INSERT the new row first, THEN delete the old one.
-      // A failure at any step leaves the original album intact → reordering can
-      // never lose a collection.
       if (error) {
         lastError = error.message;
         console.warn('updateUserAlbumRankOrders: UPDATE unavailable, using safe replace for', item.album, error.message);
       } else {
-        console.warn('updateUserAlbumRankOrders: UPDATE matched 0 rows, using safe replace for', item.album);
+        console.warn('updateUserAlbumRankOrders: UPDATE matched no pre-drag row, using safe replace for', item.album);
       }
 
+      // 2) Safe replace: INSERT the replacement row FIRST, then DELETE only the
+      //    OLD row. The delete is scoped to (album + previous rank_order), so it
+      //    can NEVER remove the freshly inserted row — deleting by album name
+      //    alone was wiping out both rows (i.e. whole tie groups).
       const e = item.entry;
       if (!e) {
         ok = false;
@@ -284,31 +289,39 @@ export async function updateUserAlbumRankOrders(
         rank_order: item.rankOrder,
       };
 
+      const deleteOld = () => {
+        let d = supabase.from('user_albums').delete().eq('user_id', userId).eq('album', name);
+        return item.oldRankOrder != null ? d.eq('rank_order', item.oldRankOrder) : d.is('rank_order', null);
+      };
+
       const { error: insErr } = await supabase.from('user_albums').insert([record]);
       if (insErr) {
-        ok = false;
-        lastError = insErr.message;
-        console.error('updateUserAlbumRankOrders: INSERT failed for', item.album, insErr.message);
+        // Likely a unique (user_id, album) constraint keeping the old row in
+        // place. Remove ONLY the old row, then retry — the delete is still
+        // scoped to the pre-drag rank, so the retry can't collide with anything.
+        console.warn('updateUserAlbumRankOrders: insert conflicted, removing old row first for', item.album, insErr.message);
+        const { error: delErr } = await deleteOld();
+        if (delErr) {
+          ok = false;
+          lastError = delErr.message;
+          console.error('updateUserAlbumRankOrders: old-row delete failed for', item.album, delErr.message);
+          continue;
+        }
+        const { error: ins2Err } = await supabase.from('user_albums').insert([record]);
+        if (ins2Err) {
+          ok = false;
+          lastError = ins2Err.message;
+          console.error('updateUserAlbumRankOrders: reinsert failed for', item.album, ins2Err.message);
+        }
         continue;
       }
 
-      // New row is in — remove the original one (retry case-insensitively).
-      const { error: delErr } = await supabase
-        .from('user_albums')
-        .delete()
-        .eq('user_id', userId)
-        .eq('album', String(item.album).trim());
+      // Replacement row is in — remove only the old row.
+      const { error: delErr } = await deleteOld();
       if (delErr) {
-        const { error: delErr2 } = await supabase
-          .from('user_albums')
-          .delete()
-          .eq('user_id', userId)
-          .ilike('album', String(item.album).trim());
-        if (delErr2) {
-          ok = false;
-          lastError = delErr2.message;
-          console.error('updateUserAlbumRankOrders: cleanup DELETE failed for', item.album, delErr2.message);
-        }
+        ok = false;
+        lastError = delErr.message;
+        console.error('updateUserAlbumRankOrders: old-row cleanup delete failed for', item.album, delErr.message);
       }
     } catch (err) {
       ok = false;

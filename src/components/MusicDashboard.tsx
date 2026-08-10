@@ -520,8 +520,9 @@ const AlbumList = ({
     // Persist only members whose rank actually changes (or has never been set).
     const toWrite = ordered.slice(groupStart, groupEnd + 1).flatMap((a, idx) => {
       const newRank = idx + 1;
-      if (storedRankById.get(albumKeyOf(a)) === newRank) return [];
-      return [{ album: String(a.Album), rankOrder: newRank, entry: a }];
+      const oldRank = storedRankById.get(albumKeyOf(a));
+      if (oldRank === newRank) return [];
+      return [{ album: String(a.Album), rankOrder: newRank, oldRankOrder: oldRank, entry: a }];
     });
 
     if (toWrite.length > 0) {
