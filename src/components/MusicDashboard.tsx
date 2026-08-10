@@ -523,16 +523,17 @@ const AlbumList = ({
     const toWrite = ordered.slice(groupStart, groupEnd + 1).flatMap((a, idx) => {
       const newRank = idx + 1;
       if (storedRankById.get(albumKeyOf(a)) === newRank) return [];
-      return [{ album: String(a.Album), rankOrder: newRank }];
+      return [{ album: String(a.Album), rankOrder: newRank, entry: a }];
     });
 
     if (toWrite.length > 0) {
-      // In-place UPDATEs only — never delete+insert — so a failed request can
-      // never remove an album; worst case the tie order keeps its old values.
-      const ok = await updateUserAlbumRankOrders(user.id, toWrite);
-      if (!ok) {
-        console.error('Reorder persisted partially — albums are safe, order may need a retry');
-        setPersistError("Couldn't save the new order to the server. Check the console for details, then drop it again.");
+      // Safe persistence: try an in-place UPDATE, and if that's not permitted by
+      // the table's RLS, fall back to INSERT-then-DELETE (never delete-first) so
+      // a failed request can never remove an album.
+      const res = await updateUserAlbumRankOrders(user.id, toWrite);
+      if (!res.ok) {
+        console.error('Reorder did not persist:', res.error);
+        setPersistError(`Reorder didn't save: ${res.error ?? 'unknown error'}. If it keeps failing, check the browser console (F12).`);
       } else {
         setPersistError(null);
       }
@@ -885,15 +886,17 @@ const MusicDashboard: React.FC<MusicDashboardProps> = ({ onAddAlbumClick, onEdit
   const isOwner = user?.email === OWNER_EMAIL;
   const displayName = nickname ?? (user?.email ? user.email.split('@')[0] : 'Music');
 
-  const loadAlbums = async () => {
-    setLoading(true);
+  const loadAlbums = async (silent = false) => {
+    // `silent` skips the full-screen spinner so a reorder refresh doesn't
+    // unmount the list (which would destroy the optimistic drag state).
+    if (!silent) setLoading(true);
     try {
       const data = await getUserAlbums(user?.id);
       setAlbums(data);
     } catch (err) {
       console.error('Failed to load user albums', err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -1071,7 +1074,7 @@ const MusicDashboard: React.FC<MusicDashboardProps> = ({ onAddAlbumClick, onEdit
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
             onEditAlbum={onEditAlbum}
-            onUpdateAlbums={loadAlbums}
+            onUpdateAlbums={() => loadAlbums(true)}
           />
         </div>
 

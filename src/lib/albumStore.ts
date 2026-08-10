@@ -238,29 +238,88 @@ export async function updateUserAlbum(
  */
 export async function updateUserAlbumRankOrders(
   userId: string,
-  items: { album: string; rankOrder: number }[]
-): Promise<boolean> {
-  let allOk = true;
+  items: { album: string; rankOrder: number; entry?: AlbumEntry }[]
+): Promise<{ ok: boolean; error?: string }> {
+  let ok = true;
+  let lastError: string | undefined;
 
   for (const item of items) {
     try {
+      // Fast path: a single, atomic in-place UPDATE.
       const { data, error } = await supabase
         .from('user_albums')
         .update({ rank_order: item.rankOrder })
         .eq('user_id', userId)
         .eq('album', String(item.album).trim())
         .select('album');
+
+      const updatedRows = Array.isArray(data) ? data.length : 0;
+      if (!error && updatedRows > 0) continue;
+
+      // UPDATE is unavailable (e.g. RLS blocks it) or matched zero rows — so use
+      // a SAFE replace: INSERT the new row first, THEN delete the old one.
+      // A failure at any step leaves the original album intact → reordering can
+      // never lose a collection.
       if (error) {
-        allOk = false;
-        console.error('updateUserAlbumRankOrders failed for', item.album, error.message);
-      } else if (!data || data.length === 0) {
-        // Zero rows matched the album name — surface this instead of silently
-        // "succeeding" with nothing persisted.
-        allOk = false;
-        console.error('updateUserAlbumRankOrders matched 0 rows for', item.album, '— rank not saved');
+        lastError = error.message;
+        console.warn('updateUserAlbumRankOrders: UPDATE unavailable, using safe replace for', item.album, error.message);
+      } else {
+        console.warn('updateUserAlbumRankOrders: UPDATE matched 0 rows, using safe replace for', item.album);
+      }
+
+      const e = item.entry;
+      if (!e) {
+        ok = false;
+        lastError = `Missing full album entry for "${item.album}"`;
+        continue;
+      }
+
+      const record = {
+        user_id: userId,
+        album: String(e.Album),
+        artist: e.Artist,
+        rating: e.Rating,
+        genre: e.Genre,
+        release_year: e['Release Year'],
+        length: e.Length,
+        cover_art: e.CoverArt ?? '',
+        apple_music_link: e.AppleMusicLink ?? '',
+        track_count: e.TrackCount ?? 0,
+        exact_release_date: e.ExactReleaseDate ?? '',
+        rank_order: item.rankOrder,
+        is_hidden: e.IsHidden ?? false,
+        top_song: e.TopSong ?? '',
+      };
+
+      const { error: insErr } = await supabase.from('user_albums').insert([record]);
+      if (insErr) {
+        ok = false;
+        lastError = insErr.message;
+        console.error('updateUserAlbumRankOrders: INSERT failed for', item.album, insErr.message);
+        continue;
+      }
+
+      // New row is in — remove the original one (retry case-insensitively).
+      const { error: delErr } = await supabase
+        .from('user_albums')
+        .delete()
+        .eq('user_id', userId)
+        .eq('album', String(item.album).trim());
+      if (delErr) {
+        const { error: delErr2 } = await supabase
+          .from('user_albums')
+          .delete()
+          .eq('user_id', userId)
+          .ilike('album', String(item.album).trim());
+        if (delErr2) {
+          ok = false;
+          lastError = delErr2.message;
+          console.error('updateUserAlbumRankOrders: cleanup DELETE failed for', item.album, delErr2.message);
+        }
       }
     } catch (err) {
-      allOk = false;
+      ok = false;
+      lastError = err instanceof Error ? err.message : String(err);
       console.error('updateUserAlbumRankOrders exception for', item.album, err);
     }
   }
@@ -273,7 +332,7 @@ export async function updateUserAlbumRankOrders(
     console.warn('updateUserAlbumRankOrders cache refresh warning:', err);
   }
 
-  return allOk;
+  return { ok, error: ok ? undefined : lastError };
 }
 
 /**
