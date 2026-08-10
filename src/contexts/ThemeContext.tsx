@@ -82,7 +82,7 @@ export const THEMES: ThemeDef[] = [
     gradientFrom: '#14b8a6',
     gradientTo: '#fb7185',
     surface: 'rgba(20,184,166,0.06)',
-    preview: ['#20,184,166', '#fb7185'],
+    preview: ['#14b8a6', '#fb7185'],
   },
   {
     id: 'fuchsia-blue',
@@ -207,9 +207,11 @@ function hexToRgb(hex: string): string {
     const r = parseInt(clean.substring(0, 2), 16);
     const g = parseInt(clean.substring(2, 4), 16);
     const b = parseInt(clean.substring(4, 6), 16);
-    return `${r}, ${g}, ${b}`;
+    // Space-separated channels: required by the modern `rgb(r g b / alpha)` syntax
+    // emitted by Tailwind utilities like bg-accent-amber (commas would be invalid).
+    return `${r} ${g} ${b}`;
   }
-  return '139, 92, 246';
+  return '139 92 246';
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────

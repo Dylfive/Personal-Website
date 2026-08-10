@@ -431,6 +431,19 @@ const AlbumList = ({
   // ─── Drag-to-reorder for tied ratings ────────────────────────────────────────
   const [dragKey, setDragKey] = useState<string | null>(null);
   const [overKey, setOverKey] = useState<string | null>(null);
+  // Refs mirror the state so handlers (esp. the async drop path) never read stale closures.
+  const dragKeyRef = useRef<string | null>(null);
+  const overKeyRef = useRef<string | null>(null);
+
+  const setDrag = (key: string | null) => {
+    dragKeyRef.current = key;
+    setDragKey(key);
+  };
+
+  const setOver = (key: string | null) => {
+    overKeyRef.current = key;
+    setOverKey(key);
+  };
 
   const albumKeyOf = (a: Album) => `${String(a.Album)}-${a.Artist}`;
 
@@ -442,30 +455,51 @@ const AlbumList = ({
   const handleDragStart = (e: React.DragEvent<HTMLButtonElement>, key: string) => {
     e.dataTransfer.setData('text/plain', key);
     e.dataTransfer.effectAllowed = 'move';
-    setDragKey(key);
+    setDrag(key);
   };
 
   const handleDragOver = (e: React.DragEvent, key: string) => {
-    if (!dragKey || dragKey === key) return;
-    if (dragRating(dragKey) !== dragRating(key)) return;
+    const active = dragKeyRef.current;
+    if (!active || active === key) return;
+    if (dragRating(active) !== dragRating(key)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    setOverKey(key);
+    if (overKeyRef.current !== key) setOver(key);
+  };
+
+  const handleDragLeave = (e: React.DragEvent, key: string) => {
+    const next = e.relatedTarget;
+    if (next instanceof Node && e.currentTarget.contains(next)) return;
+    if (overKeyRef.current === key) setOver(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, key: string) => {
+    e.preventDefault();
+    const active = dragKeyRef.current;
+    if (!active || active === key) return;
+    if (dragRating(active) !== dragRating(key)) return;
+    void handleReorderTo(key);
+  };
+
+  const handleDragEnd = () => {
+    setDrag(null);
+    setOver(null);
   };
 
   const handleReorderTo = async (dropKey: string) => {
-    const from = filteredAndSorted.findIndex((a) => albumKeyOf(a) === dragKey);
+    const active = dragKeyRef.current;
+    const from = filteredAndSorted.findIndex((a) => albumKeyOf(a) === active);
     const to = filteredAndSorted.findIndex((a) => albumKeyOf(a) === dropKey);
-    if (from === -1 || to === -1 || from === to || !dragKey || !user?.id) {
-      setDragKey(null);
-      setOverKey(null);
+    if (from === -1 || to === -1 || from === to || !active || !user?.id) {
+      setDrag(null);
+      setOver(null);
       return;
     }
     const src = filteredAndSorted[from];
     const dst = filteredAndSorted[to];
     if (src.Rating.toFixed(1) !== dst.Rating.toFixed(1)) {
-      setDragKey(null);
-      setOverKey(null);
+      setDrag(null);
+      setOver(null);
       return;
     }
 
@@ -493,8 +527,8 @@ const AlbumList = ({
       onUpdateAlbums?.();
     }
 
-    setDragKey(null);
-    setOverKey(null);
+    setDrag(null);
+    setOver(null);
   };
 
   const toggleField = (key: keyof ListInfoToggles) => {
@@ -646,6 +680,9 @@ const AlbumList = ({
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                   transition={{ duration: 0.2, delay: idx > 20 ? 0 : idx * 0.05 }}
+                  onDragOver={(e) => handleDragOver(e, itemKey)}
+                  onDragLeave={(e) => handleDragLeave(e, itemKey)}
+                  onDrop={(e) => handleDrop(e, itemKey)}
                   className={`glass-panel p-3 rounded-2xl flex gap-4 items-center group transition-colors ${
                     overKey === itemKey && dragKey && dragKey !== itemKey
                       ? 'bg-white/10 ring-1 ring-[color:var(--accent-primary)]/50'
@@ -758,9 +795,7 @@ const AlbumList = ({
                     <button
                       draggable
                       onDragStart={(e) => handleDragStart(e, itemKey)}
-                      onDragOver={(e) => handleDragOver(e, itemKey)}
-                      onDrop={(e) => { e.preventDefault(); void handleReorderTo(itemKey); }}
-                      onDragEnd={() => { setDragKey(null); setOverKey(null); }}
+                      onDragEnd={handleDragEnd}
                       title="Drag to reorder albums tied at this rating"
                       aria-label="Drag to reorder tied albums"
                       className={`flex-shrink-0 p-2 rounded-full border cursor-grab active:cursor-grabbing transition-all duration-200 ${
