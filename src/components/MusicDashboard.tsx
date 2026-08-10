@@ -4,10 +4,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronRight, ChevronLeft, Music, ExternalLink, Star, Calendar, Clock,
   Trophy, Disc3, Search, ArrowUpDown, BarChart2, Plus, Pencil,
-  Mic2, GripVertical, Palette, Eye
+  Mic2, GripVertical, Palette, Eye, RotateCcw
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { getUserAlbums, updateUserAlbum } from '../lib/albumStore';
+import { getUserAlbums, updateUserAlbum, updateUserAlbumRankOrders, restoreUserAlbumsFromSeed } from '../lib/albumStore';
 import { useTheme } from '../contexts/ThemeContext';
 import ThemePicker from './ThemePicker';
 
@@ -507,22 +507,39 @@ const AlbumList = ({
     const [moved] = next.splice(from, 1);
     next.splice(to, 0, moved);
 
-    // Reassign rank_order within each rating group using the new manual order
-    let groupKey: string | null = null;
-    let rank = 0;
-    const updated = next.map((a) => {
-      const key = a.Rating.toFixed(1);
-      if (key !== groupKey) { groupKey = key; rank = 1; } else { rank += 1; }
-      return { ...a, RankOrder: rank };
+    // Reassign rank_order ONLY inside the dragged rating group (contiguous in the
+    // sorted list). Scoping to the group means legacy rows without a stored
+    // rank_order never trigger a rewrite of the whole collection.
+    const ratingKey = src.Rating.toFixed(1);
+    let groupStart = -1;
+    let groupEnd = -1;
+    for (let i = 0; i < next.length; i++) {
+      if (next[i].Rating.toFixed(1) !== ratingKey) continue;
+      if (groupStart === -1) groupStart = i;
+      groupEnd = i;
+    }
+
+    // Each group member's current stored tiebreaker rank (null = not set yet).
+    const storedRankById = new Map<string, number | null>();
+    if (groupStart >= 0) {
+      filteredAndSorted.slice(groupStart, groupEnd + 1).forEach((a) => {
+        storedRankById.set(albumKeyOf(a), a.RankOrder ?? null);
+      });
+    }
+
+    // Persist only members whose rank actually changes (or has never been set).
+    const toWrite = next.slice(groupStart, groupEnd + 1).flatMap((a, idx) => {
+      const newRank = idx + 1;
+      if (storedRankById.get(albumKeyOf(a)) === newRank) return [];
+      return [{ album: String(a.Album), rankOrder: newRank }];
     });
 
-    const changed = updated.filter(
-      (a, i) => a.RankOrder !== (filteredAndSorted[i]?.RankOrder ?? null)
-    );
-
-    if (changed.length > 0) {
-      for (const alb of changed) {
-        await updateUserAlbum(user.id, String(alb.Album), alb);
+    if (toWrite.length > 0) {
+      // In-place UPDATEs only — never delete+insert — so a failed request can
+      // never remove an album; worst case the tie order keeps its old values.
+      const ok = await updateUserAlbumRankOrders(user.id, toWrite);
+      if (!ok) {
+        console.error('Reorder persisted partially — albums are safe, order may need a retry');
       }
       onUpdateAlbums?.();
     }
@@ -846,6 +863,7 @@ const MusicDashboard: React.FC<MusicDashboardProps> = ({ onAddAlbumClick, onEdit
   const [loading, setLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [showThemePicker, setShowThemePicker] = useState(false);
+  const [restoreMsg, setRestoreMsg] = useState<string | null>(null);
 
   const isOwner = user?.email === OWNER_EMAIL;
   const displayName = nickname ?? (user?.email ? user.email.split('@')[0] : 'Music');
@@ -865,6 +883,23 @@ const MusicDashboard: React.FC<MusicDashboardProps> = ({ onAddAlbumClick, onEdit
   useEffect(() => {
     loadAlbums();
   }, [user?.id]);
+
+  const handleRestoreFromSeed = async () => {
+    if (!user?.id || !isOwner) return;
+    if (!window.confirm('Re-insert the albums missing from your collection using the canonical dataset? Existing albums are untouched.')) return;
+    try {
+      const { restored } = await restoreUserAlbumsFromSeed(user.id);
+      setRestoreMsg(
+        restored > 0
+          ? `Restored ${restored} missing album(s) from the canonical dataset.`
+          : 'Collection already matches the canonical dataset.'
+      );
+      loadAlbums();
+    } catch (err) {
+      console.error('Restore failed', err);
+      setRestoreMsg('Restore failed — check the console.');
+    }
+  };
 
   const baseSortedAlbums = useMemo(
     () => [...albums].sort((a, b) => b.Rating - a.Rating),
@@ -967,8 +1002,18 @@ const MusicDashboard: React.FC<MusicDashboardProps> = ({ onAddAlbumClick, onEdit
           </p>
         </div>
 
-        {/* Customization color picker button */}
+        {/* Owner recovery + theme controls */}
         <div className="flex items-center gap-2">
+          {isOwner && (
+            <button
+              onClick={() => void handleRestoreFromSeed()}
+              title="Re-insert the albums missing from your collection using the canonical dataset (owner only)"
+              className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-white flex items-center gap-2 transition-all"
+            >
+              <RotateCcw className="w-4 h-4 text-[color:var(--accent-primary)]" />
+              Restore Albums
+            </button>
+          )}
           <button
             onClick={() => setShowThemePicker(!showThemePicker)}
             title="Customize UI Color Theme"
@@ -978,6 +1023,9 @@ const MusicDashboard: React.FC<MusicDashboardProps> = ({ onAddAlbumClick, onEdit
             Color Theme
           </button>
         </div>
+        {restoreMsg && (
+          <p className="text-xs text-white/50 mt-2">{restoreMsg}</p>
+        )}
       </div>
 
       {/* Theme Picker Drawer */}

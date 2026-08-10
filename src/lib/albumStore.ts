@@ -151,43 +151,53 @@ export async function updateUserAlbum(
   const normalizedOriginal = originalAlbumName.toLowerCase().trim();
   const normalizedNew = String(updatedAlbum.Album).toLowerCase().trim();
 
+  const record = {
+    album: String(updatedAlbum.Album),
+    artist: updatedAlbum.Artist,
+    rating: updatedAlbum.Rating,
+    genre: updatedAlbum.Genre,
+    release_year: updatedAlbum['Release Year'],
+    length: updatedAlbum.Length,
+    cover_art: updatedAlbum.CoverArt ?? '',
+    apple_music_link: updatedAlbum.AppleMusicLink ?? '',
+    track_count: updatedAlbum.TrackCount ?? 0,
+    exact_release_date: updatedAlbum.ExactReleaseDate ?? '',
+    rank_order: updatedAlbum.RankOrder ?? null,
+    is_hidden: updatedAlbum.IsHidden ?? false,
+    top_song: updatedAlbum.TopSong ?? '',
+  };
+
   try {
-    // 1. Delete the original Supabase record
-    await supabase
-      .from('user_albums')
-      .delete()
-      .eq('user_id', userId)
-      .ilike('album', originalAlbumName.trim());
-
-    // 2. If the album name changed, also remove any conflicting record with the new name
-    if (normalizedNew !== normalizedOriginal) {
-      await supabase
+    if (normalizedNew === normalizedOriginal) {
+      // Same-name update: atomic in-place UPDATE. NEVER delete the row first —
+      // a failed request must leave the existing album untouched.
+      const { error } = await supabase
         .from('user_albums')
-        .delete()
+        .update(record)
         .eq('user_id', userId)
-        .ilike('album', String(updatedAlbum.Album).trim());
+        .eq('album', originalAlbumName.trim());
+      if (error) {
+        console.error('Supabase update warning:', error.message);
+      }
+    } else {
+      // Rename: insert the NEW row first, and only delete the old row if the
+      // insert succeeded — a transient failure can then never destroy the album.
+      const { error: insertErr } = await supabase.from('user_albums').insert([
+        { user_id: userId, ...record },
+      ]);
+      if (insertErr) {
+        console.error('Supabase rename insert warning:', insertErr.message);
+      } else {
+        const { error: deleteErr } = await supabase
+          .from('user_albums')
+          .delete()
+          .eq('user_id', userId)
+          .eq('album', originalAlbumName.trim());
+        if (deleteErr) {
+          console.error('Supabase rename delete warning:', deleteErr.message);
+        }
+      }
     }
-
-    // 3. Insert the updated record
-    const { error } = await supabase.from('user_albums').insert([
-      {
-        user_id: userId,
-        album: String(updatedAlbum.Album),
-        artist: updatedAlbum.Artist,
-        rating: updatedAlbum.Rating,
-        genre: updatedAlbum.Genre,
-        release_year: updatedAlbum['Release Year'],
-        length: updatedAlbum.Length,
-        cover_art: updatedAlbum.CoverArt ?? '',
-        apple_music_link: updatedAlbum.AppleMusicLink ?? '',
-        track_count: updatedAlbum.TrackCount ?? 0,
-        exact_release_date: updatedAlbum.ExactReleaseDate ?? '',
-        rank_order: updatedAlbum.RankOrder ?? null,
-        is_hidden: updatedAlbum.IsHidden ?? false,
-        top_song: updatedAlbum.TopSong ?? '',
-      },
-    ]);
-    if (error) console.warn('Supabase update insert warning:', error.message);
   } catch (err) {
     console.warn('Supabase updateUserAlbum exception:', err);
   }
@@ -216,6 +226,96 @@ export async function updateUserAlbum(
   }
 
   return updated;
+}
+
+/**
+ * Persist new tiebreaker rank_order values with in-place UPDATEs only.
+ *
+ * The old updateUserAlbum() path DELETE + re-INSERTed every row it saved, so a
+ * failed insert (network hiccup / Supabase rate limit) permanently removed the
+ * album. These UPDATEs are atomic per row: if a request fails the album simply
+ * keeps its old order — reordering can never delete a collection again.
+ */
+export async function updateUserAlbumRankOrders(
+  userId: string,
+  items: { album: string; rankOrder: number }[]
+): Promise<boolean> {
+  let allOk = true;
+
+  for (const item of items) {
+    try {
+      const { error } = await supabase
+        .from('user_albums')
+        .update({ rank_order: item.rankOrder })
+        .eq('user_id', userId)
+        .eq('album', String(item.album).trim());
+      if (error) {
+        allOk = false;
+        console.error('updateUserAlbumRankOrders failed for', item.album, error.message);
+      }
+    } catch (err) {
+      allOk = false;
+      console.error('updateUserAlbumRankOrders exception for', item.album, err);
+    }
+  }
+
+  // Refresh the local cache from server truth (the server rows carry the new ranks).
+  try {
+    const refreshed = await getUserAlbums(userId);
+    localStorage.setItem(`albums_user_${userId}`, JSON.stringify(refreshed));
+  } catch (err) {
+    console.warn('updateUserAlbumRankOrders cache refresh warning:', err);
+  }
+
+  return allOk;
+}
+
+/**
+ * Recovery helper: re-insert any albums from the canonical GitHub dataset
+ * (`Album-Data.json`) that are missing from this user's collection.
+ *
+ * Safe to run repeatedly — only missing albums are added, existing rows are
+ * never modified or deleted. Intended for the owner account, whose canonical
+ * data lives in the repo dataset (user_albums rows were the only casualties of
+ * the old delete-then-insert bug).
+ */
+export async function restoreUserAlbumsFromSeed(
+  userId: string
+): Promise<{ restored: number; skipped: number }> {
+  const seed = rawAlbumData as AlbumEntry[];
+  const current = await getUserAlbums(userId);
+  const owned = new Set(current.map((a) => String(a.Album).toLowerCase().trim()));
+
+  const missing = seed.filter(
+    (a) => !owned.has(String(a.Album).toLowerCase().trim())
+  );
+
+  if (missing.length > 0) {
+    const rows = missing.map((a) => ({
+      user_id: userId,
+      album: String(a.Album),
+      artist: a.Artist,
+      rating: a.Rating,
+      genre: a.Genre,
+      release_year: a['Release Year'],
+      length: a.Length,
+      cover_art: a.CoverArt ?? '',
+      apple_music_link: a.AppleMusicLink ?? '',
+      track_count: a.TrackCount ?? 0,
+      exact_release_date: a.ExactReleaseDate ?? '',
+      rank_order: a.RankOrder ?? null,
+    }));
+    const { error } = await supabase.from('user_albums').insert(rows);
+    if (error) {
+      console.error('restoreUserAlbumsFromSeed insert error:', error.message);
+      return { restored: 0, skipped: owned.size };
+    }
+  }
+
+  const refreshed = await getUserAlbums(userId);
+  localStorage.setItem(`albums_user_${userId}`, JSON.stringify(refreshed));
+
+  return { restored: missing.length, skipped: owned.size };
 }
 
 export async function seedUserAlbums(userId: string): Promise<AlbumEntry[]> {
@@ -306,7 +406,7 @@ export async function deleteUserAlbum(userId: string, albumName: string): Promis
       .from('user_albums')
       .delete()
       .eq('user_id', userId)
-      .ilike('album', albumName.trim());
+      .eq('album', albumName.trim());
   } catch (err) {
     console.warn('Supabase deleteUserAlbum exception:', err);
   }
