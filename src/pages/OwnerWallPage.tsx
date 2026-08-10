@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronRight, Music, ExternalLink, Star, Calendar, Clock,
-  Trophy, Disc3, Search, ArrowUpDown, BarChart2, Pencil, Mic2
+  Trophy, Disc3, Search, ArrowUpDown, BarChart2, Pencil
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { AlbumEntry } from '../types/album';
@@ -269,8 +269,7 @@ const AlbumList = ({ albums, onReload }: { albums: AlbumEntry[]; onReload?: () =
       const matchArtist = a.Artist.toLowerCase().includes(query);
       const matchGenre = a.Genre.toLowerCase().includes(query);
       const matchRating = a.Rating.toFixed(1).includes(query) || String(a.Rating).includes(query);
-      const matchSong = (a.TopSong ?? '').toLowerCase().includes(query);
-      return matchTitle || matchArtist || matchGenre || matchRating || matchSong;
+      return matchTitle || matchArtist || matchGenre || matchRating;
     });
     result.sort((a, b) => {
       if (sortBy === 'rating') return b.Rating - a.Rating;
@@ -385,14 +384,6 @@ const AlbumList = ({ albums, onReload }: { albums: AlbumEntry[]; onReload?: () =
                       {album.Artist}
                     </p>
 
-                    {/* Passive Top Song */}
-                    {album.TopSong && (
-                      <p className="text-xs text-white/70 font-medium truncate mt-0.5 flex items-center gap-1">
-                        <Mic2 className="w-3 h-3 text-[color:var(--accent-primary)] shrink-0" />
-                        <span className="italic text-white/80">"{album.TopSong}"</span>
-                      </p>
-                    )}
-
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5">
                       <div className="flex items-center gap-1">
                         <Star className="w-3 h-3 text-[color:var(--accent-primary)] fill-[color:var(--accent-primary)]" />
@@ -493,7 +484,6 @@ export default function OwnerWallPage() {
             Length: item.length ?? '',
             CoverArt: item.cover_art ?? '',
             AppleMusicLink: item.apple_music_link ?? '',
-            TopSong: item.top_song ?? '',
           }))
         );
       } else {

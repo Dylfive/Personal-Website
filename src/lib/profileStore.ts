@@ -271,7 +271,6 @@ export async function getUserAlbumsForProfile(
       AppleMusicLink: item.apple_music_link ?? '',
       RankOrder: item.rank_order !== undefined && item.rank_order !== null ? Number(item.rank_order) : undefined,
       IsHidden: item.is_hidden ?? false,
-      TopSong: item.top_song ?? '',
     }));
 
     // Sort by rating desc, then rank_order asc (tie breaker)

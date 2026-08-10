@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Save, ArrowLeft, Disc3, Calendar, Clock, Music, AlertTriangle, Loader2, Frown, Link as LinkIcon, Mic2, Trash2, AlertCircle, Star } from 'lucide-react';
+import { Save, ArrowLeft, Disc3, Calendar, Clock, Music, AlertTriangle, Loader2, Frown, Link as LinkIcon, Trash2, AlertCircle, Star } from 'lucide-react';
 import type { AlbumEntry } from '../../types/album';
 
 interface ReviewScreenProps {
@@ -300,21 +300,6 @@ export default function ReviewScreen({ draft, onSave, onBack, onDelete, isSubmit
             }}
             placeholder="0.0"
             className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-[color:var(--accent-secondary)] text-white font-mono"
-          />
-        </div>
-
-        {/* Top Song */}
-        <div className="space-y-2 col-span-1 sm:col-span-2">
-          <label className="flex items-center gap-2 text-sm font-medium text-white/70">
-            <Mic2 className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
-            Top Song <span className="text-xs text-white/35 font-normal">(optional — your favourite track on this album)</span>
-          </label>
-          <input
-            type="text"
-            value={editedDraft.TopSong ?? ''}
-            onChange={(e) => handleChange('TopSong', e.target.value)}
-            placeholder="e.g. Comfortably Numb"
-            className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-[color:var(--accent-primary)] text-white"
           />
         </div>
       </div>

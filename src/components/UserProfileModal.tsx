@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
-  X, Music, Star, Trophy, Calendar, Disc3, TrendingUp, Hash, Settings, Check, LayoutGrid, Mic2
+  X, Music, Star, Trophy, Calendar, Disc3, TrendingUp, Hash, Settings, Check, LayoutGrid
 } from 'lucide-react';
 import { getUserAlbumsForProfile, setUserVisibleStats, ALL_STAT_KEYS, DEFAULT_VISIBLE_STATS } from '../lib/profileStore';
 import type { AlbumEntry } from '../types/album';
@@ -104,12 +104,6 @@ function MiniCover({ album, rank }: { album: AlbumEntry; rank: number }) {
         <p className="text-xs text-white/50 truncate flex items-center gap-2">
           {album.Artist}
         </p>
-        {album.TopSong && (
-          <p className="text-[11px] text-white/70 italic truncate flex items-center gap-1 mt-0.5">
-            <Mic2 className="w-3 h-3 text-[color:var(--accent-primary)] shrink-0" />
-            "{album.TopSong}"
-          </p>
-        )}
       </div>
 
       <div

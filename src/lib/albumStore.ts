@@ -53,7 +53,6 @@ export async function getUserAlbums(userId?: string): Promise<AlbumEntry[]> {
           ExactReleaseDate: item.exact_release_date ?? '',
           RankOrder: item.rank_order !== undefined && item.rank_order !== null ? Number(item.rank_order) : undefined,
           IsHidden: item.is_hidden ?? false,
-          TopSong: item.top_song ?? '',
         }));
 
         // Sort by Rating desc, then RankOrder asc (lower = better tiebreaker rank)
@@ -107,8 +106,6 @@ export async function addUserAlbum(userId: string, newAlbum: AlbumEntry): Promis
         track_count: newAlbum.TrackCount ?? 0,
         exact_release_date: newAlbum.ExactReleaseDate ?? '',
         rank_order: newAlbum.RankOrder ?? null,
-        is_hidden: newAlbum.IsHidden ?? false,
-        top_song: newAlbum.TopSong ?? '',
       },
     ]);
     if (error) {
@@ -163,8 +160,6 @@ export async function updateUserAlbum(
     track_count: updatedAlbum.TrackCount ?? 0,
     exact_release_date: updatedAlbum.ExactReleaseDate ?? '',
     rank_order: updatedAlbum.RankOrder ?? null,
-    is_hidden: updatedAlbum.IsHidden ?? false,
-    top_song: updatedAlbum.TopSong ?? '',
   };
 
   try {
@@ -287,8 +282,6 @@ export async function updateUserAlbumRankOrders(
         track_count: e.TrackCount ?? 0,
         exact_release_date: e.ExactReleaseDate ?? '',
         rank_order: item.rankOrder,
-        is_hidden: e.IsHidden ?? false,
-        top_song: e.TopSong ?? '',
       };
 
       const { error: insErr } = await supabase.from('user_albums').insert([record]);

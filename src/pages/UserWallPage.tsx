@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Star, Calendar, Music, ExternalLink, Disc3, Search,
+  Star, Calendar, Music, ExternalLink, Search,
   X, ArrowLeft, AlignLeft, Trophy, Palette, Loader2,
 } from 'lucide-react';
 import { getUserAlbumsForProfile, getUserProfile } from '../lib/profileStore';
@@ -308,12 +308,7 @@ function WallDetailModal({
                 {album.Genre.split(',')[0].trim()}
               </span>
             )}
-            {album.TopSong && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-white/5 border border-white/10 text-white/60">
-                <Disc3 className="w-3 h-3" /> Top: {album.TopSong}
-              </span>
-            )}
-          </div>
+            </div>
 
           {album.AppleMusicLink && (
             <a
