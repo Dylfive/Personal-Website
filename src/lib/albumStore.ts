@@ -61,9 +61,23 @@ export async function getUserAlbums(userId?: string): Promise<AlbumEntry[]> {
           return (a.RankOrder ?? 999) - (b.RankOrder ?? 999);
         });
 
+        // Defensive dedupe: collapse any duplicate rows (same album) left behind
+        // by older reorder writes — prefer the copy that carries a real rank.
+        const uniqueByAlbum = new Map<string, AlbumEntry>();
+        for (const a of parsed) {
+          const k = String(a.Album).toLowerCase().trim();
+          const prev = uniqueByAlbum.get(k);
+          if (!prev) uniqueByAlbum.set(k, a);
+          else if (prev.RankOrder === undefined && a.RankOrder !== undefined) uniqueByAlbum.set(k, a);
+        }
+        const deduped = [...uniqueByAlbum.values()].sort((a, b) => {
+          if (b.Rating !== a.Rating) return b.Rating - a.Rating;
+          return (a.RankOrder ?? 999) - (b.RankOrder ?? 999);
+        });
+
         // Cache to local storage
-        localStorage.setItem(`albums_user_${userId}`, JSON.stringify(parsed));
-        return parsed;
+        localStorage.setItem(`albums_user_${userId}`, JSON.stringify(deduped));
+        return deduped;
       } else {
         // Explicitly empty in Supabase
         const cached = localStorage.getItem(`albums_user_${userId}`);
@@ -242,10 +256,37 @@ export async function updateUserAlbumRankOrders(
     const name = String(item.album).trim();
     if (item.oldRankOrder === item.rankOrder) continue; // nothing changed
 
+    const record = {
+      user_id: userId,
+      album: String(item.entry?.Album ?? item.album),
+      artist: item.entry?.Artist ?? '',
+      rating: item.entry?.Rating ?? 0,
+      genre: item.entry?.Genre ?? '',
+      release_year: item.entry?.['Release Year'] ?? 0,
+      length: item.entry?.Length ?? '',
+      cover_art: item.entry?.CoverArt ?? '',
+      apple_music_link: item.entry?.AppleMusicLink ?? '',
+      track_count: item.entry?.TrackCount ?? 0,
+      exact_release_date: item.entry?.ExactReleaseDate ?? '',
+      rank_order: item.rankOrder,
+    };
+
+    // Deletes every row for this album EXCEPT the one carrying the desired
+    // final rank — removes old copies AND any duplicates from earlier runs,
+    // while never touching the row we just inserted. Deletes by album name
+    // alone would destroy the replacement row too (that wiped whole tie
+    // groups), so this rank-scoped cleanup is what makes reordering safe.
+    const deleteStale = () =>
+      supabase
+        .from('user_albums')
+        .delete()
+        .eq('user_id', userId)
+        .eq('album', name)
+        .or(`rank_order.is.null,rank_order.neq.${item.rankOrder}`);
+
     try {
       // 1) Fast path: atomic in-place UPDATE scoped to the exact pre-drag row
-      //    (album name + the rank it had before the drag). Never touches any
-      //    other row.
+      //    (album name + the rank it had before the drag).
       let q = supabase
         .from('user_albums')
         .update({ rank_order: item.rankOrder })
@@ -258,54 +299,22 @@ export async function updateUserAlbumRankOrders(
 
       if (error) {
         lastError = error.message;
-        console.warn('updateUserAlbumRankOrders: UPDATE unavailable, using safe replace for', item.album, error.message);
+        console.warn('updateUserAlbumRankOrders: UPDATE unavailable, converging via insert+cleanup for', item.album, error.message);
       } else {
-        console.warn('updateUserAlbumRankOrders: UPDATE matched no pre-drag row, using safe replace for', item.album);
+        console.warn('updateUserAlbumRankOrders: UPDATE matched no pre-drag row, converging for', item.album);
       }
 
-      // 2) Safe replace: INSERT the replacement row FIRST, then DELETE only the
-      //    OLD row. The delete is scoped to (album + previous rank_order), so it
-      //    can NEVER remove the freshly inserted row — deleting by album name
-      //    alone was wiping out both rows (i.e. whole tie groups).
-      const e = item.entry;
-      if (!e) {
-        ok = false;
-        lastError = `Missing full album entry for "${item.album}"`;
-        continue;
-      }
-
-      const record = {
-        user_id: userId,
-        album: String(e.Album),
-        artist: e.Artist,
-        rating: e.Rating,
-        genre: e.Genre,
-        release_year: e['Release Year'],
-        length: e.Length,
-        cover_art: e.CoverArt ?? '',
-        apple_music_link: e.AppleMusicLink ?? '',
-        track_count: e.TrackCount ?? 0,
-        exact_release_date: e.ExactReleaseDate ?? '',
-        rank_order: item.rankOrder,
-      };
-
-      const deleteOld = () => {
-        let d = supabase.from('user_albums').delete().eq('user_id', userId).eq('album', name);
-        return item.oldRankOrder != null ? d.eq('rank_order', item.oldRankOrder) : d.is('rank_order', null);
-      };
-
+      // 2) Converge on exactly ONE row with the final rank:
       const { error: insErr } = await supabase.from('user_albums').insert([record]);
       if (insErr) {
-        // Likely a unique (user_id, album) constraint keeping the old row in
-        // place. Remove ONLY the old row, then retry — the delete is still
-        // scoped to the pre-drag rank, so the retry can't collide with anything.
-        console.warn('updateUserAlbumRankOrders: insert conflicted, removing old row first for', item.album, insErr.message);
-        const { error: delErr } = await deleteOld();
-        if (delErr) {
+        // The album name is still taken (e.g. a unique constraint or a leftover
+        // copy) — remove stale copies first, then insert.
+        console.warn('updateUserAlbumRankOrders: insert conflicted, cleaning stale copies for', item.album, insErr.message);
+        const { error: staleErr } = await deleteStale();
+        if (staleErr) {
           ok = false;
-          lastError = delErr.message;
-          console.error('updateUserAlbumRankOrders: old-row delete failed for', item.album, delErr.message);
-          continue;
+          lastError = staleErr.message;
+          console.error('updateUserAlbumRankOrders: stale-copy delete failed for', item.album, staleErr.message);
         }
         const { error: ins2Err } = await supabase.from('user_albums').insert([record]);
         if (ins2Err) {
@@ -313,15 +322,14 @@ export async function updateUserAlbumRankOrders(
           lastError = ins2Err.message;
           console.error('updateUserAlbumRankOrders: reinsert failed for', item.album, ins2Err.message);
         }
-        continue;
-      }
-
-      // Replacement row is in — remove only the old row.
-      const { error: delErr } = await deleteOld();
-      if (delErr) {
-        ok = false;
-        lastError = delErr.message;
-        console.error('updateUserAlbumRankOrders: old-row cleanup delete failed for', item.album, delErr.message);
+      } else {
+        // Remove every copy that isn't the final row.
+        const { error: cleanErr } = await deleteStale();
+        if (cleanErr) {
+          ok = false;
+          lastError = cleanErr.message;
+          console.error('updateUserAlbumRankOrders: cleanup delete failed for', item.album, cleanErr.message);
+        }
       }
     } catch (err) {
       ok = false;
@@ -330,7 +338,7 @@ export async function updateUserAlbumRankOrders(
     }
   }
 
-  // Refresh the local cache from server truth (the server rows carry the new ranks).
+  // Refresh local cache from server truth.
   try {
     const refreshed = await getUserAlbums(userId);
     localStorage.setItem(`albums_user_${userId}`, JSON.stringify(refreshed));

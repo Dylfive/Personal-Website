@@ -433,6 +433,11 @@ const AlbumList = ({
   // until the user drags, at which point Reorder supplies the new order live.
   const [listOrder, setListOrder] = useState<string[]>([]);
   const listOrderRef = useRef<string[]>([]);
+  // framer-motion Reorder fires onReorder multiple times during ONE drag, so
+  // coalesce every callback into a single save of the FINAL order — saving per
+  // callback would re-run inserts with stale ranks and duplicate rows.
+  const pendingReorderRef = useRef<{ orderedKeys: string[]; rating: string } | null>(null);
+  const persistBusyRef = useRef(false);
   const [persistError, setPersistError] = useState<string | null>(null);
 
   const ratingOfKey = (key: string): string | null => {
@@ -487,9 +492,23 @@ const AlbumList = ({
     finalKeys.splice(finalIdx, 0, movedKey);
 
     // Apply optimistically so the row glides into place, then persist quietly.
+    // Coalesce rapid onReorder callbacks from a single drag into the final order.
     listOrderRef.current = finalKeys;
     setListOrder(finalKeys);
-    void persistReorder(finalKeys, rating);
+    pendingReorderRef.current = { orderedKeys: finalKeys, rating };
+    if (!persistBusyRef.current) {
+      persistBusyRef.current = true;
+      void drainPendingReorder();
+    }
+  };
+
+  const drainPendingReorder = async () => {
+    while (pendingReorderRef.current) {
+      const next = pendingReorderRef.current;
+      pendingReorderRef.current = null;
+      await persistReorder(next.orderedKeys, next.rating);
+    }
+    persistBusyRef.current = false;
   };
 
   const persistReorder = async (orderedKeys: string[], rating: string) => {
