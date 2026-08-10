@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import {
   ChevronRight, ChevronLeft, Music, ExternalLink, Star, Calendar, Clock,
   Trophy, Disc3, Search, ArrowUpDown, BarChart2, Plus, Pencil,
@@ -428,107 +428,77 @@ const AlbumList = ({
     return map;
   }, [albums]);
 
-  // ─── Drag-to-reorder for tied ratings ────────────────────────────────────────
-  const [dragKey, setDragKey] = useState<string | null>(null);
-  const [overKey, setOverKey] = useState<string | null>(null);
-  // Refs mirror the state so handlers (esp. the async drop path) never read stale closures.
-  const dragKeyRef = useRef<string | null>(null);
-  const overKeyRef = useRef<string | null>(null);
-
-  const setDrag = (key: string | null) => {
-    dragKeyRef.current = key;
-    setDragKey(key);
-  };
-
-  const setOver = (key: string | null) => {
-    overKeyRef.current = key;
-    setOverKey(key);
-  };
-
+  // ─── Drag-to-reorder (framer-motion Reorder) ────────────────────────────────
   const albumKeyOf = (a: Album) => `${String(a.Album)}-${a.Artist}`;
 
-  const dragRating = (key: string): string | null => {
-    const src = filteredAndSorted.find((a) => albumKeyOf(a) === key);
-    return src ? src.Rating.toFixed(1) : null;
+  // Order of the album keys currently displayed. Mirrors `filteredAndSorted`
+  // until the user drags, at which point Reorder supplies the new order live.
+  const [listOrder, setListOrder] = useState<string[]>([]);
+  const listOrderRef = useRef<string[]>([]);
+
+  const ratingOfKey = (key: string): string | null => {
+    const a = albums.find((x) => albumKeyOf(x) === key);
+    return a ? a.Rating.toFixed(1) : null;
   };
 
-  const handleDragStart = (e: React.DragEvent<HTMLButtonElement>, key: string) => {
-    e.dataTransfer.setData('text/plain', key);
-    e.dataTransfer.effectAllowed = 'move';
-    setDrag(key);
-  };
+  const handleReorder = (newKeys: string[]) => {
+    const oldKeys = listOrderRef.current;
+    if (newKeys.length !== oldKeys.length || !user?.id) return;
+    if (newKeys.every((k, i) => k === oldKeys[i])) return;
 
-  const handleDragOver = (e: React.DragEvent, key: string) => {
-    const active = dragKeyRef.current;
-    if (!active || active === key) return;
-    if (dragRating(active) !== dragRating(key)) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    if (overKeyRef.current !== key) setOver(key);
-  };
-
-  const handleDragLeave = (e: React.DragEvent, key: string) => {
-    const next = e.relatedTarget;
-    if (next instanceof Node && e.currentTarget.contains(next)) return;
-    if (overKeyRef.current === key) setOver(null);
-  };
-
-  const handleDrop = (e: React.DragEvent, key: string) => {
-    e.preventDefault();
-    const active = dragKeyRef.current;
-    if (!active || active === key) return;
-    if (dragRating(active) !== dragRating(key)) return;
-    void handleReorderTo(key);
-  };
-
-  const handleDragEnd = () => {
-    setDrag(null);
-    setOver(null);
-  };
-
-  const handleReorderTo = async (dropKey: string) => {
-    const active = dragKeyRef.current;
-    const from = filteredAndSorted.findIndex((a) => albumKeyOf(a) === active);
-    const to = filteredAndSorted.findIndex((a) => albumKeyOf(a) === dropKey);
-    if (from === -1 || to === -1 || from === to || !active || !user?.id) {
-      setDrag(null);
-      setOver(null);
-      return;
+    // The moved key is the one whose removal leaves both sequences identical.
+    // (A single drag can shift several indices, so compare by relative order.)
+    let movedKey: string | null = null;
+    for (const k of newKeys) {
+      const o = oldKeys.filter((x) => x !== k);
+      const n = newKeys.filter((x) => x !== k);
+      if (o.length === n.length && o.every((x, i) => x === n[i])) {
+        movedKey = k;
+        break;
+      }
     }
-    const src = filteredAndSorted[from];
-    const dst = filteredAndSorted[to];
-    if (src.Rating.toFixed(1) !== dst.Rating.toFixed(1)) {
-      setDrag(null);
-      setOver(null);
-      return;
-    }
+    if (!movedKey) return;
 
-    const next = [...filteredAndSorted];
-    const [moved] = next.splice(from, 1);
-    next.splice(to, 0, moved);
+    const rating = ratingOfKey(movedKey);
+    if (!rating) return;
 
-    // Reassign rank_order ONLY inside the dragged rating group (contiguous in the
-    // sorted list). Scoping to the group means legacy rows without a stored
-    // rank_order never trigger a rewrite of the whole collection.
-    const ratingKey = src.Rating.toFixed(1);
+    // Only allow moves that stay inside the same rating group — anything else
+    // would fight the rating sort, so it snaps right back.
+    const newIdx = newKeys.indexOf(movedKey);
+    const prevRating = newIdx > 0 ? ratingOfKey(newKeys[newIdx - 1]) : rating;
+    const nextRating = newIdx < newKeys.length - 1 ? ratingOfKey(newKeys[newIdx + 1]) : rating;
+    if (prevRating !== rating || nextRating !== rating) return;
+
+    // Apply optimistically so the row glides into place, then persist quietly.
+    listOrderRef.current = newKeys;
+    setListOrder(newKeys);
+    void persistReorder(newKeys, rating);
+  };
+
+  const persistReorder = async (orderedKeys: string[], rating: string) => {
+    if (!user?.id) return;
+    const ordered = orderedKeys
+      .map((key) => albums.find((a) => albumKeyOf(a) === key))
+      .filter((a): a is Album => !!a);
+
+    // Contiguous rating group in the new order.
     let groupStart = -1;
     let groupEnd = -1;
-    for (let i = 0; i < next.length; i++) {
-      if (next[i].Rating.toFixed(1) !== ratingKey) continue;
+    for (let i = 0; i < ordered.length; i++) {
+      if (ordered[i].Rating.toFixed(1) !== rating) continue;
       if (groupStart === -1) groupStart = i;
       groupEnd = i;
     }
+    if (groupStart < 0) return;
 
-    // Each group member's current stored tiebreaker rank (null = not set yet).
+    // Stored tiebreaker rank per member (null = never set before).
     const storedRankById = new Map<string, number | null>();
-    if (groupStart >= 0) {
-      filteredAndSorted.slice(groupStart, groupEnd + 1).forEach((a) => {
-        storedRankById.set(albumKeyOf(a), a.RankOrder ?? null);
-      });
+    for (let i = groupStart; i <= groupEnd; i++) {
+      storedRankById.set(albumKeyOf(ordered[i]), ordered[i].RankOrder ?? null);
     }
 
     // Persist only members whose rank actually changes (or has never been set).
-    const toWrite = next.slice(groupStart, groupEnd + 1).flatMap((a, idx) => {
+    const toWrite = ordered.slice(groupStart, groupEnd + 1).flatMap((a, idx) => {
       const newRank = idx + 1;
       if (storedRankById.get(albumKeyOf(a)) === newRank) return [];
       return [{ album: String(a.Album), rankOrder: newRank }];
@@ -543,9 +513,6 @@ const AlbumList = ({
       }
       onUpdateAlbums?.();
     }
-
-    setDrag(null);
-    setOver(null);
   };
 
   const toggleField = (key: keyof ListInfoToggles) => {
@@ -577,6 +544,22 @@ const AlbumList = ({
 
     return result;
   }, [albums, searchQuery, sortBy]);
+
+  // Reset display order whenever the underlying list changes (load, edit, sort,
+  // search). Reorder is gated to "no search", so this is always the
+  // authoritative full order the server should reflect.
+  const derivedKeys = useMemo(
+    () => filteredAndSorted.map((a) => albumKeyOf(a)),
+    [filteredAndSorted]
+  );
+
+  useEffect(() => {
+    listOrderRef.current = derivedKeys;
+    setListOrder(derivedKeys);
+  }, [derivedKeys]);
+
+  // Falls back to the derived order on first render to avoid a flicker.
+  const orderKeys = listOrder.length > 0 ? listOrder : derivedKeys;
 
   const handleInlineSave = async (originalAlbumName: string, updated: Album) => {
     if (!user?.id) return;
@@ -676,42 +659,48 @@ const AlbumList = ({
       </div>
 
       {/* List Area */}
-      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 min-h-[400px]">
-        <AnimatePresence mode="popLayout">
-          {filteredAndSorted.length > 0 ? (
-            filteredAndSorted.map((album, idx) => {
-              const hasCover = album.CoverArt && album.CoverArt !== 'Not Found';
-              const isRatingSort = sortBy === 'rating';
-              const globalRank = isRatingSort ? albums.findIndex((a) => a.Album === album.Album && a.Artist === album.Artist) + 1 : null;
-              const itemKey = `${album.Album}-${album.Artist}`;
-              const isEditingThis = editingKey === itemKey;
+      <div className="flex-1 overflow-y-auto p-4 min-h-[400px]">
+        <Reorder.Group
+          as="div"
+          axis="y"
+          values={orderKeys}
+          onReorder={handleReorder}
+          className="flex flex-col gap-3"
+        >
+          {orderKeys.length > 0 ? (
+            <AnimatePresence mode="popLayout">
+              {orderKeys.map((itemKey) => {
+                const album = albums.find((a) => albumKeyOf(a) === itemKey);
+                if (!album) return null;
+                const hasCover = album.CoverArt && album.CoverArt !== 'Not Found';
+                const isRatingSort = sortBy === 'rating';
+                const globalRank = isRatingSort ? albums.findIndex((a) => a.Album === album.Album && a.Artist === album.Artist) + 1 : null;
+                const isEditingThis = editingKey === itemKey;
 
-              const tiedCount = tiedGroups[album.Rating.toFixed(1)]?.length ?? 0;
-              const isMoveable = !!user && sortBy === 'rating' && tiedCount > 1;
+                const tiedCount = tiedGroups[album.Rating.toFixed(1)]?.length ?? 0;
+                const isMoveable = !!user && isRatingSort && !searchQuery && tiedCount > 1 && !isEditingThis;
 
-              return (
-                <motion.div
-                  key={`${album.Album}-${album.Artist}-${idx}`}
-                  layout
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.2, delay: idx > 20 ? 0 : idx * 0.05 }}
-                  onDragOver={(e) => handleDragOver(e, itemKey)}
-                  onDragLeave={(e) => handleDragLeave(e, itemKey)}
-                  onDrop={(e) => handleDrop(e, itemKey)}
-                  className={`glass-panel p-3 rounded-2xl flex gap-4 items-center group transition-colors ${
-                    overKey === itemKey && dragKey && dragKey !== itemKey
-                      ? 'bg-white/10 ring-1 ring-[color:var(--accent-primary)]/50'
-                      : 'hover:bg-white/10'
-                  } ${dragKey === itemKey ? 'opacity-50' : ''}`}
-                >
+                return (
+                  <Reorder.Item
+                    key={itemKey}
+                    value={itemKey}
+                    dragListener={isMoveable}
+                    whileDrag={{ scale: 1.02, opacity: 0.85, zIndex: 30, boxShadow: '0 10px 34px rgba(0,0,0,0.55)' }}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ duration: 0.2 }}
+                    className={`glass-panel p-3 rounded-2xl flex gap-4 items-center group transition-colors ${
+                      isMoveable ? 'cursor-grab active:cursor-grabbing' : 'hover:bg-white/10'
+                    }`}
+                  >
                   <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden flex-shrink-0">
                     {hasCover ? (
                       <img
                         src={album.CoverArt}
                         alt={`${album.Album} cover`}
                         className="w-full h-full object-cover"
+                        draggable={false}
                         onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                       />
                     ) : (
@@ -800,6 +789,7 @@ const AlbumList = ({
                       href={album.AppleMusicLink}
                       target="_blank"
                       rel="noopener noreferrer"
+                      draggable={false}
                       className="flex-shrink-0 p-2 sm:px-4 sm:py-2 rounded-full border border-white/10 text-white/60 hover:text-white hover:border-[color:var(--accent-primary)]/50 hover:bg-white/5 transition-all duration-200"
                     >
                       <ExternalLink className="w-4 h-4 sm:hidden" />
@@ -807,22 +797,15 @@ const AlbumList = ({
                     </a>
                   )}
 
-                  {/* Drag-to-reorder handle for tied ratings */}
+                  {/* Drag affordance — the whole entry moves via Reorder */}
                   {isMoveable && (
-                    <button
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, itemKey)}
-                      onDragEnd={handleDragEnd}
-                      title="Drag to reorder albums tied at this rating"
+                    <span
+                      title="Drag this entry to reorder albums tied at this rating"
                       aria-label="Drag to reorder tied albums"
-                      className={`flex-shrink-0 p-2 rounded-full border cursor-grab active:cursor-grabbing transition-all duration-200 ${
-                        overKey === itemKey
-                          ? 'border-[color:var(--accent-primary)]/70 bg-white/10 text-[color:var(--accent-primary)]'
-                          : 'border-white/10 text-white/30 hover:text-[color:var(--accent-primary)] hover:border-[color:var(--accent-primary)]/40'
-                      }`}
+                      className="flex-shrink-0 p-2 rounded-full border border-white/10 text-white/30 cursor-grab active:cursor-grabbing group-hover:text-[color:var(--accent-primary)] group-hover:border-[color:var(--accent-primary)]/40 group-hover:bg-white/5 transition-all duration-200"
                     >
                       <GripVertical className="w-4 h-4" />
-                    </button>
+                    </span>
                   )}
 
                   {/* Edit button */}
@@ -835,16 +818,17 @@ const AlbumList = ({
                       <Pencil className="w-4 h-4" />
                     </button>
                   )}
-                </motion.div>
+                </Reorder.Item>
               );
-            })
+              })}
+            </AnimatePresence>
           ) : (
-            <div className="h-full flex flex-col items-center justify-center text-white/40">
+            <div className="h-full flex flex-col items-center justify-center text-white/40 w-full">
               <Search className="w-8 h-8 mb-2 opacity-50" />
               <p className="text-sm">No albums found.</p>
             </div>
           )}
-        </AnimatePresence>
+        </Reorder.Group>
       </div>
     </div>
   );
