@@ -261,6 +261,7 @@ const AlbumList = ({ albums, onReload }: { albums: AlbumEntry[]; onReload?: () =
   const [sortBy, setSortBy] = useState<SortOption>('rating');
   const [searchQuery, setSearchQuery] = useState('');
   const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [editMode, setEditMode] = useState<boolean>(false);
 
   const filteredAndSorted = useMemo(() => {
     const query = searchQuery.toLowerCase();
@@ -303,21 +304,37 @@ const AlbumList = ({ albums, onReload }: { albums: AlbumEntry[]; onReload?: () =
               className="w-full bg-white/5 border border-white/10 rounded-full py-2 pl-10 pr-4 text-sm text-white placeholder-white/40 focus:outline-none focus:border-[color:var(--accent-primary)]/50 focus:ring-1 focus:ring-[color:var(--accent-primary)]/50 transition-all"
             />
           </div>
-          <div className="relative w-full sm:w-auto min-w-[160px]">
-            <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortOption)}
-              className="w-full appearance-none bg-white/5 border border-white/10 rounded-full py-2 pl-10 pr-8 text-sm text-white focus:outline-none focus:border-[color:var(--accent-primary)]/50 focus:ring-1 focus:ring-[color:var(--accent-primary)]/50 transition-all cursor-pointer"
-            >
-              <option value="rating" className="bg-[#1a1a1a]">Highest Rated</option>
-              <option value="year_desc" className="bg-[#1a1a1a]">Newest First</option>
-              <option value="year_asc" className="bg-[#1a1a1a]">Oldest First</option>
-              <option value="title" className="bg-[#1a1a1a]">Title (A-Z)</option>
-              <option value="artist" className="bg-[#1a1a1a]">Artist (A-Z)</option>
-            </select>
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-              <ChevronRight className="w-4 h-4 text-white/40 rotate-90" />
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            {canEdit && (
+              <button
+                onClick={() => setEditMode((prev) => !prev)}
+                className={`px-3.5 py-2 rounded-full text-xs font-semibold border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  editMode
+                    ? 'bg-[color:var(--accent-primary)]/20 border-[color:var(--accent-primary)]/50 text-[color:var(--accent-primary)] shadow-sm'
+                    : 'bg-white/5 border-white/10 text-white/60 hover:text-white hover:bg-white/10'
+                }`}
+                title={editMode ? 'Hide edit buttons' : 'Show edit buttons'}
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                <span>{editMode ? 'Done' : 'Edit'}</span>
+              </button>
+            )}
+            <div className="relative flex-1 sm:flex-none min-w-[160px]">
+              <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortOption)}
+                className="w-full appearance-none bg-white/5 border border-white/10 rounded-full py-2 pl-10 pr-8 text-sm text-white focus:outline-none focus:border-[color:var(--accent-primary)]/50 focus:ring-1 focus:ring-[color:var(--accent-primary)]/50 transition-all cursor-pointer"
+              >
+                <option value="rating" className="bg-[#1a1a1a]">Highest Rated</option>
+                <option value="year_desc" className="bg-[#1a1a1a]">Newest First</option>
+                <option value="year_asc" className="bg-[#1a1a1a]">Oldest First</option>
+                <option value="title" className="bg-[#1a1a1a]">Title (A-Z)</option>
+                <option value="artist" className="bg-[#1a1a1a]">Artist (A-Z)</option>
+              </select>
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                <ChevronRight className="w-4 h-4 text-white/40 rotate-90" />
+              </div>
             </div>
           </div>
         </div>
@@ -371,15 +388,15 @@ const AlbumList = ({ albums, onReload }: { albums: AlbumEntry[]; onReload?: () =
                 ) : (
                   <div className="flex-1 min-w-0 flex flex-col justify-center">
                     <h4
-                      onClick={() => canEdit && setEditingKey(itemKey)}
-                      className={`text-base sm:text-lg font-bold text-white truncate ${canEdit ? 'hover:underline cursor-pointer' : ''}`}
-                      title={canEdit ? 'Click to edit title & artist' : undefined}
+                      onClick={() => canEdit && editMode && setEditingKey(itemKey)}
+                      className={`text-base sm:text-lg font-bold text-white truncate ${canEdit && editMode ? 'hover:underline cursor-pointer' : ''}`}
+                      title={canEdit && editMode ? 'Click to edit title & artist' : undefined}
                     >
                       {String(album.Album)}
                     </h4>
                     <p
-                      onClick={() => canEdit && setEditingKey(itemKey)}
-                      className={`text-xs sm:text-sm text-[color:var(--accent-primary)] truncate ${canEdit ? 'hover:underline cursor-pointer' : ''}`}
+                      onClick={() => canEdit && editMode && setEditingKey(itemKey)}
+                      className={`text-xs sm:text-sm text-[color:var(--accent-primary)] truncate ${canEdit && editMode ? 'hover:underline cursor-pointer' : ''}`}
                     >
                       {album.Artist}
                     </p>
@@ -402,8 +419,8 @@ const AlbumList = ({ albums, onReload }: { albums: AlbumEntry[]; onReload?: () =
                   </div>
                 )}
 
-                {/* Edit Button on Album Wall — owner only, always visible */}
-                {canEdit && (
+                {/* Edit Button on Album Wall — owner only when edit mode is active */}
+                {canEdit && editMode && (
                   <button
                     onClick={() => setEditingKey(itemKey)}
                     title="Edit album title or artist"
