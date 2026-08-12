@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
 import {
-  ChevronRight, ChevronLeft, Music, ExternalLink, Star, Calendar, Clock,
+  ChevronRight, ChevronLeft, Music, Star, Calendar, Clock,
   Trophy, Disc3, Search, ArrowUpDown, BarChart2, Plus, Pencil,
   GripVertical, Palette, Eye, RotateCcw
 } from 'lucide-react';
@@ -848,19 +848,6 @@ const AlbumList = ({
                         )}
                       </div>
                     </div>
-                  )}
-
-                  {album.AppleMusicLink && (
-                    <a
-                      href={album.AppleMusicLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      draggable={false}
-                      className="flex-shrink-0 p-2 sm:px-4 sm:py-2 rounded-full border border-white/10 text-white/60 hover:text-white hover:border-[color:var(--accent-primary)]/50 hover:bg-white/5 transition-all duration-200"
-                    >
-                      <ExternalLink className="w-4 h-4 sm:hidden" />
-                      <span className="hidden sm:inline text-xs font-bold">Listen</span>
-                    </a>
                   )}
 
                   {/* Drag affordance — ONLY the grip button initiates a drag so

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Save, ArrowLeft, Disc3, Calendar, Clock, Music, AlertTriangle, Loader2, Frown, Link as LinkIcon, Trash2, AlertCircle, Star } from 'lucide-react';
+import { Save, ArrowLeft, Disc3, Calendar, Clock, Music, AlertTriangle, Loader2, ImageIcon, Link as LinkIcon, Trash2, AlertCircle, Star } from 'lucide-react';
 import type { AlbumEntry } from '../../types/album';
 
 interface ReviewScreenProps {
@@ -180,7 +180,7 @@ export default function ReviewScreen({ draft, onSave, onBack, onDelete, isSubmit
               onClick={handleItunesIsShit}
               className="inline-flex items-center gap-1.5 px-3 py-1 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 rounded-full text-sm font-bold transition-colors"
             >
-              <Frown className="w-4 h-4" /> iTunes API is shit
+              <ImageIcon className="w-4 h-4" /> Replace Album Art
             </button>
           </div>
         </div>
@@ -300,6 +300,18 @@ export default function ReviewScreen({ draft, onSave, onBack, onDelete, isSubmit
             }}
             placeholder="0.0"
             className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-[color:var(--accent-secondary)] text-white font-mono"
+          />
+        </div>
+        <div className="space-y-2 sm:col-span-2">
+          <label className="flex items-center gap-2 text-sm font-medium text-white/70">
+            <LinkIcon className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} /> Streaming Link
+          </label>
+          <input
+            type="url"
+            value={editedDraft.AppleMusicLink ?? ''}
+            onChange={(e) => handleChange('AppleMusicLink', e.target.value)}
+            placeholder="Paste a Spotify, Apple Music, or any streaming URL..."
+            className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-[color:var(--accent-secondary)] text-white text-sm font-mono"
           />
         </div>
       </div>

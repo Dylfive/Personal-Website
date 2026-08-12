@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ChevronRight, Music, ExternalLink, Star, Calendar, Clock,
+  ChevronRight, Music, Star, Calendar, Clock,
   Trophy, Disc3, Search, ArrowUpDown, BarChart2, Pencil
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -400,13 +400,6 @@ const AlbumList = ({ albums, onReload }: { albums: AlbumEntry[]; onReload?: () =
                       </span>
                     </div>
                   </div>
-                )}
-
-                {album.AppleMusicLink && (
-                  <a href={album.AppleMusicLink} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 p-2 sm:px-4 sm:py-2 rounded-full border border-white/10 text-white/60 hover:text-white hover:border-[color:var(--accent-primary)]/50 hover:bg-white/5 transition-all duration-200">
-                    <ExternalLink className="w-4 h-4 sm:hidden" />
-                    <span className="hidden sm:inline text-xs font-bold">Listen</span>
-                  </a>
                 )}
 
                 {/* Edit Button on Album Wall — owner only, always visible */}

@@ -317,7 +317,7 @@ function WallDetailModal({
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/15 text-white/65 hover:text-white hover:border-[color:var(--accent-primary)]/40 hover:bg-white/5 transition-all text-sm font-semibold mb-6"
             >
-              <ExternalLink className="w-3.5 h-3.5" /> Listen on Apple Music
+              <ExternalLink className="w-3.5 h-3.5" /> Listen
             </a>
           )}
 
