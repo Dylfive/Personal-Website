@@ -474,18 +474,32 @@ export default function OwnerWallPage() {
         .order('rating', { ascending: false });
 
       if (!error && data && data.length > 0) {
-        setAlbums(
-          data.map((item: any) => ({
-            Album: item.album,
-            Artist: item.artist,
-            Rating: Number(item.rating),
-            Genre: item.genre ?? '',
-            'Release Year': Number(item.release_year ?? 0),
-            Length: item.length ?? '',
-            CoverArt: item.cover_art ?? '',
-            AppleMusicLink: item.apple_music_link ?? '',
-          }))
-        );
+        const mapped: AlbumEntry[] = data.map((item: any) => ({
+          Album: item.album,
+          Artist: item.artist,
+          Rating: Number(item.rating),
+          Genre: item.genre ?? '',
+          'Release Year': Number(item.release_year ?? 0),
+          Length: item.length ?? '',
+          CoverArt: item.cover_art ?? '',
+          AppleMusicLink: item.apple_music_link ?? '',
+          RankOrder: item.rank_order != null ? Number(item.rank_order) : undefined,
+        }));
+
+        // Deduplicate by album title (case-insensitive), preferring ranked entries.
+        const uniqueByAlbum = new Map<string, AlbumEntry>();
+        for (const a of mapped) {
+          const k = String(a.Album).toLowerCase().trim();
+          const prev = uniqueByAlbum.get(k);
+          if (!prev) uniqueByAlbum.set(k, a);
+          else if (prev.RankOrder === undefined && a.RankOrder !== undefined) uniqueByAlbum.set(k, a);
+        }
+        const deduped = [...uniqueByAlbum.values()].sort((a, b) => {
+          if (b.Rating !== a.Rating) return b.Rating - a.Rating;
+          return (a.RankOrder ?? 999) - (b.RankOrder ?? 999);
+        });
+
+        setAlbums(deduped);
       } else {
         setAlbums(rawAlbumData as AlbumEntry[]);
       }

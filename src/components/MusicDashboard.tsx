@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence, Reorder } from 'framer-motion';
+import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
 import {
   ChevronRight, ChevronLeft, Music, ExternalLink, Star, Calendar, Clock,
   Trophy, Disc3, Search, ArrowUpDown, BarChart2, Plus, Pencil,
@@ -391,6 +391,47 @@ const InlineAlbumEditor = ({
   );
 };
 
+// ─── Drag-handle-only Reorder.Item wrapper ────────────────────────────────────
+// Using dragListener={false} + useDragControls means only the grip ⠿ icon
+// can start a drag. The rest of the row stays scrollable on touch devices.
+const ReorderItemWithHandle = ({
+  itemKey,
+  isMoveable,
+  children,
+}: {
+  itemKey: string;
+  isMoveable: boolean;
+  children: React.ReactNode;
+}) => {
+  const controls = useDragControls();
+
+  // When a pointerdown lands on [data-drag-handle] inside this item, start drag.
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (!isMoveable) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-drag-handle]')) {
+      controls.start(e);
+    }
+  };
+
+  return (
+    <Reorder.Item
+      value={itemKey}
+      dragListener={false}
+      dragControls={controls}
+      whileDrag={{ scale: 1.02, opacity: 0.85, zIndex: 30, boxShadow: '0 10px 34px rgba(0,0,0,0.55)' }}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      transition={{ duration: 0.2 }}
+      className={`glass-panel p-3 rounded-2xl flex gap-4 items-center group transition-colors hover:bg-white/10`}
+      onPointerDown={handlePointerDown}
+    >
+      {children}
+    </Reorder.Item>
+  );
+};
+
 // ─── Interactive Album List ───────────────────────────────────────────────────
 const AlbumList = ({
   albums,
@@ -722,18 +763,10 @@ const AlbumList = ({
                 const isMoveable = !!user && isRatingSort && !searchQuery && tiedCount > 1 && !isEditingThis;
 
                 return (
-                  <Reorder.Item
+                  <ReorderItemWithHandle
                     key={itemKey}
-                    value={itemKey}
-                    dragListener={isMoveable}
-                    whileDrag={{ scale: 1.02, opacity: 0.85, zIndex: 30, boxShadow: '0 10px 34px rgba(0,0,0,0.55)' }}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    transition={{ duration: 0.2 }}
-                    className={`glass-panel p-3 rounded-2xl flex gap-4 items-center group transition-colors ${
-                      isMoveable ? 'cursor-grab active:cursor-grabbing' : 'hover:bg-white/10'
-                    }`}
+                    itemKey={itemKey}
+                    isMoveable={isMoveable}
                   >
                   <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden flex-shrink-0">
                     {hasCover ? (
@@ -830,12 +863,15 @@ const AlbumList = ({
                     </a>
                   )}
 
-                  {/* Drag affordance — the whole entry moves via Reorder */}
+                  {/* Drag affordance — ONLY the grip button initiates a drag so
+                      the rest of the row stays scrollable on mobile. */}
                   {isMoveable && (
                     <span
                       title="Drag this entry to reorder albums tied at this rating"
                       aria-label="Drag to reorder tied albums"
+                      data-drag-handle
                       className="flex-shrink-0 p-2 rounded-full border border-white/10 text-white/30 cursor-grab active:cursor-grabbing group-hover:text-[color:var(--accent-primary)] group-hover:border-[color:var(--accent-primary)]/40 group-hover:bg-white/5 transition-all duration-200"
+                      style={{ touchAction: 'none' }}
                     >
                       <GripVertical className="w-4 h-4" />
                     </span>
@@ -851,7 +887,7 @@ const AlbumList = ({
                       <Pencil className="w-4 h-4" />
                     </button>
                   )}
-                </Reorder.Item>
+                </ReorderItemWithHandle>
               );
               })}
             </AnimatePresence>
