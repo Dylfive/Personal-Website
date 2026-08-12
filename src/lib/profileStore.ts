@@ -35,6 +35,8 @@ export interface UserProfile {
   visibleStats?: string[];
   uiTheme?: string;
   profileAccent?: string;
+  bio?: string;
+  cardAccent?: string;
 }
 
 export interface LeaderboardEntry {
@@ -46,6 +48,8 @@ export interface LeaderboardEntry {
   topAlbum: AlbumEntry | null;
   topAlbumCover: string;
   visibleStats?: string[];
+  bio?: string;
+  cardAccent?: string;
 }
 
 export const ALL_STAT_KEYS = [
@@ -84,14 +88,37 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
       }
     }
 
+    const bio = data.bio ?? localStorage.getItem(`profile_bio_${userId}`) ?? '';
+    const cardAccent = data.card_accent ?? localStorage.getItem(`profile_accent_${userId}`) ?? '';
+
     return {
       userId: data.user_id,
       nickname: data.nickname,
       createdAt: data.created_at,
       visibleStats,
+      bio,
+      cardAccent,
     };
   } catch {
     return null;
+  }
+}
+
+export async function setUserBioAndAccent(
+  userId: string,
+  bio: string,
+  cardAccent?: string
+): Promise<boolean> {
+  localStorage.setItem(`profile_bio_${userId}`, bio);
+  if (cardAccent) localStorage.setItem(`profile_accent_${userId}`, cardAccent);
+  try {
+    const { error } = await supabase
+      .from('user_profiles')
+      .update({ bio, card_accent: cardAccent })
+      .eq('user_id', userId);
+    return !error;
+  } catch {
+    return true;
   }
 }
 
@@ -209,6 +236,9 @@ export async function getLeaderboardData(): Promise<LeaderboardEntry[]> {
         }
       }
 
+      const bio = profile.bio ?? localStorage.getItem(`profile_bio_${profile.user_id}`) ?? '';
+      const cardAccent = profile.card_accent ?? localStorage.getItem(`profile_accent_${profile.user_id}`) ?? '';
+
       return {
         userId: profile.user_id,
         nickname: profile.nickname,
@@ -216,6 +246,8 @@ export async function getLeaderboardData(): Promise<LeaderboardEntry[]> {
         albumCount,
         avgRating,
         visibleStats,
+        bio,
+        cardAccent,
         topAlbum: top
           ? ({
               Album: top.album,

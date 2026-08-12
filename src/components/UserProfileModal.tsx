@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
-  X, Music, Star, Trophy, Calendar, Disc3, TrendingUp, Hash, Settings, Check, LayoutGrid
+  X, Music, Star, Trophy, Calendar, Disc3, TrendingUp, Hash, Settings, Check, LayoutGrid, MessageSquare
 } from 'lucide-react';
-import { getUserAlbumsForProfile, setUserVisibleStats, ALL_STAT_KEYS, DEFAULT_VISIBLE_STATS } from '../lib/profileStore';
+import { getUserAlbumsForProfile, setUserVisibleStats, getUserProfile, setUserBioAndAccent, ALL_STAT_KEYS, DEFAULT_VISIBLE_STATS } from '../lib/profileStore';
 import type { AlbumEntry } from '../types/album';
 import { useAuth } from '../contexts/AuthContext';
+import ThemePicker from './ThemePicker';
 
 interface UserProfileModalProps {
   userId: string;
@@ -15,6 +16,8 @@ interface UserProfileModalProps {
   albumCount: number;
   avgRating: number;
   visibleStats?: string[];
+  bio?: string;
+  cardAccent?: string;
   onClose: () => void;
   onStatsUpdated?: () => void;
 }
@@ -70,7 +73,6 @@ function topArtist(albums: AlbumEntry[]): string {
 // ─── Album Cover (mini) ───────────────────────────────────────────────────────
 function MiniCover({ album, rank }: { album: AlbumEntry; rank: number }) {
   const hasCover = album.CoverArt && album.CoverArt !== 'Not Found';
-  const rankColors = ['var(--accent-primary)', '#94a3b8', '#cd7c2f'];
   const rankLabels = ['🥇', '🥈', '🥉'];
 
   return (
@@ -99,18 +101,15 @@ function MiniCover({ album, rank }: { album: AlbumEntry; rank: number }) {
         </div>
       </div>
 
-      <div className="flex-1 min-w-0">
+      <div className="min-w-0 flex-1">
         <p className="text-sm font-bold text-white truncate">{String(album.Album)}</p>
-        <p className="text-xs text-white/50 truncate flex items-center gap-2">
-          {album.Artist}
-        </p>
+        <p className="text-xs text-[color:var(--accent-primary)] truncate">{album.Artist}</p>
+        <p className="text-[11px] text-white/40 mt-0.5">{album['Release Year']}</p>
       </div>
 
-      <div
-        className="flex-shrink-0 text-sm font-black px-2 py-1 rounded-lg"
-        style={{ background: `${rankColors[rank] ?? '#ffffff'}22`, color: rankColors[rank] ?? '#ffffff' }}
-      >
-        {album.Rating.toFixed(1)}
+      <div className="flex items-center gap-1 bg-white/5 border border-white/10 px-2.5 py-1 rounded-full flex-shrink-0">
+        <Star className="w-3 h-3 text-[color:var(--accent-primary)] fill-[color:var(--accent-primary)]" />
+        <span className="text-xs font-bold text-white">{album.Rating.toFixed(1)}</span>
       </div>
     </div>
   );
@@ -143,6 +142,8 @@ export default function UserProfileModal({
   albumCount,
   avgRating,
   visibleStats: initialVisibleStats,
+  bio: initialBio = '',
+  cardAccent: initialCardAccent = '',
   onClose,
   onStatsUpdated,
 }: UserProfileModalProps) {
@@ -154,6 +155,8 @@ export default function UserProfileModal({
   const [loading, setLoading] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [visibleStats, setVisibleStats] = useState<string[]>(initialVisibleStats ?? DEFAULT_VISIBLE_STATS);
+  const [bio, setBio] = useState<string>(initialBio);
+  const [cardAccent, setCardAccent] = useState<string>(initialCardAccent);
 
   useEffect(() => {
     let cancelled = false;
@@ -162,6 +165,12 @@ export default function UserProfileModal({
       if (!cancelled) {
         setAlbums(data);
         setLoading(false);
+      }
+    });
+    getUserProfile(userId).then((p) => {
+      if (!cancelled && p) {
+        if (p.bio) setBio(p.bio);
+        if (p.cardAccent) setCardAccent(p.cardAccent);
       }
     });
     return () => { cancelled = true; };
@@ -183,6 +192,22 @@ export default function UserProfileModal({
     setVisibleStats(updated);
     if (isOwner) {
       await setUserVisibleStats(userId, updated);
+      onStatsUpdated?.();
+    }
+  };
+
+  const handleSaveBio = async (newBio: string) => {
+    setBio(newBio);
+    if (isOwner) {
+      await setUserBioAndAccent(userId, newBio, cardAccent);
+      onStatsUpdated?.();
+    }
+  };
+
+  const handleAccentChange = async (themeId: string) => {
+    setCardAccent(themeId);
+    if (isOwner) {
+      await setUserBioAndAccent(userId, bio, themeId);
       onStatsUpdated?.();
     }
   };
@@ -226,7 +251,7 @@ export default function UserProfileModal({
           {isOwner && (
             <button
               onClick={() => setShowSettings(!showSettings)}
-              title="Customize Displayed Stats"
+              title="Customize Profile Settings"
               className={`absolute top-4 right-14 z-10 px-2.5 py-1 rounded-full border text-xs font-bold flex items-center gap-1.5 transition-all ${
                 showSettings
                   ? 'bg-[color:var(--accent-primary)] text-white border-[color:var(--accent-primary)]'
@@ -239,7 +264,7 @@ export default function UserProfileModal({
           )}
 
           {/* Header */}
-          <div className="p-6 pb-4 flex items-center gap-4">
+          <div className="p-6 pb-3 flex items-center gap-4">
             <div
               className="w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-black text-white flex-shrink-0 border-2"
               style={{ background: `${color}22`, borderColor: `${color}55`, color }}
@@ -259,6 +284,11 @@ export default function UserProfileModal({
                 <Calendar className="w-3.5 h-3.5" />
                 Member since {memberSince(createdAt)}
               </p>
+              {bio && (
+                <p className="text-xs text-white/70 italic mt-1.5 bg-white/5 px-2.5 py-1 rounded-lg border border-white/10 truncate">
+                  "{bio}"
+                </p>
+              )}
             </div>
           </div>
 
@@ -279,8 +309,33 @@ export default function UserProfileModal({
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="px-6 pb-4 border-b border-white/10 bg-black/30"
+              className="px-6 pb-4 border-b border-white/10 bg-black/30 space-y-4"
             >
+              {/* Bio / Tagline */}
+              <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-2">
+                <label className="text-xs font-bold uppercase tracking-wider text-[color:var(--accent-primary)] flex items-center gap-1.5">
+                  <MessageSquare className="w-3.5 h-3.5" /> Tagline / Bio
+                </label>
+                <input
+                  type="text"
+                  value={bio}
+                  onChange={(e) => handleSaveBio(e.target.value)}
+                  placeholder="e.g. Progressive rock & jazz enthusiast..."
+                  className="w-full px-3 py-1.5 bg-white/5 border border-white/10 rounded-xl text-xs text-white placeholder-white/40 focus:outline-none focus:border-[color:var(--accent-primary)]"
+                />
+              </div>
+
+              {/* Card Accent Picker */}
+              <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
+                <ThemePicker
+                  mode="personal"
+                  value={cardAccent}
+                  onChange={handleAccentChange}
+                  label="Card Accent Color"
+                />
+              </div>
+
+              {/* Stats selection */}
               <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-3">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-[color:var(--accent-primary)] flex items-center gap-1.5">
                   <Settings className="w-3.5 h-3.5" /> Select Displayed Stats

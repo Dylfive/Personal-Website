@@ -176,17 +176,64 @@ export async function updateUserAlbum(
     rank_order: updatedAlbum.RankOrder ?? null,
   };
 
+  let persistFailure: string | null = null;
   try {
     if (normalizedNew === normalizedOriginal) {
-      // Same-name update: atomic in-place UPDATE. NEVER delete the row first —
-      // a failed request must leave the existing album untouched.
-      const { error } = await supabase
+      // Same-name update: prefer an atomic in-place UPDATE and VERIFY it
+      // touched a row. We use ilike to match database rows regardless of title case.
+      let matched = false;
+      const { data, error } = await supabase
         .from('user_albums')
         .update(record)
         .eq('user_id', userId)
-        .eq('album', originalAlbumName.trim());
-      if (error) {
-        console.error('Supabase update warning:', error.message);
+        .ilike('album', originalAlbumName.trim())
+        .select('album');
+      if (!error && Array.isArray(data) && data.length > 0) {
+        matched = true;
+      }
+
+      if (!matched) {
+        console.warn(
+          'updateUserAlbum: in-place UPDATE unavailable for',
+          originalAlbumName,
+          error ? error.message : 'matched 0 rows'
+        );
+        // Never delete-first, so a transient failure can't destroy the album.
+        const { error: insErr } = await supabase
+          .from('user_albums')
+          .insert([{ user_id: userId, ...record }]);
+        if (insErr) {
+          // Album name is still taken — clear stale copies via ilike, then retry.
+          console.warn('updateUserAlbum: replace insert conflicted, cleaning stale copies for', originalAlbumName, insErr.message);
+          const { error: staleErr } = await supabase
+            .from('user_albums')
+            .delete()
+            .eq('user_id', userId)
+            .ilike('album', originalAlbumName.trim());
+          if (staleErr) {
+            console.error('updateUserAlbum: stale-copy delete failed for', originalAlbumName, staleErr.message);
+          }
+          const { error: ins2Err } = await supabase
+            .from('user_albums')
+            .insert([{ user_id: userId, ...record }]);
+          if (ins2Err) {
+            console.error('updateUserAlbum: reinsert failed for', originalAlbumName, ins2Err.message);
+            persistFailure = `Could not save changes to "${originalAlbumName}".`;
+          }
+        } else {
+          // Fresh row is in — drop any leftover copy that isn't the row we
+          // just wrote (scoped to the written cover so the new row survives
+          // when the album name alone is shared with the old copy).
+          const { error: cleanErr } = await supabase
+            .from('user_albums')
+            .delete()
+            .eq('user_id', userId)
+            .ilike('album', originalAlbumName.trim())
+            .neq('cover_art', record.cover_art ?? '');
+          if (cleanErr) {
+            console.warn('updateUserAlbum: cleanup delete failed for', originalAlbumName, cleanErr.message);
+          }
+        }
       }
     } else {
       // Rename: insert the NEW row first, and only delete the old row if the
@@ -196,12 +243,13 @@ export async function updateUserAlbum(
       ]);
       if (insertErr) {
         console.error('Supabase rename insert warning:', insertErr.message);
+        persistFailure = `Could not save renamed album "${updatedAlbum.Album}": ${insertErr.message}`;
       } else {
         const { error: deleteErr } = await supabase
           .from('user_albums')
           .delete()
           .eq('user_id', userId)
-          .eq('album', originalAlbumName.trim());
+          .ilike('album', originalAlbumName.trim());
         if (deleteErr) {
           console.error('Supabase rename delete warning:', deleteErr.message);
         }
@@ -209,6 +257,12 @@ export async function updateUserAlbum(
     }
   } catch (err) {
     console.warn('Supabase updateUserAlbum exception:', err);
+  }
+
+  // Surface a real persistence failure (instead of a false "Album Updated!")
+  // so the UI can show the error rather than silently losing the change.
+  if (persistFailure) {
+    throw new Error(persistFailure);
   }
 
   // 4. Rebuild local cache: remove original + any name-conflict, prepend updated
@@ -485,7 +539,7 @@ export async function deleteUserAlbum(userId: string, albumName: string): Promis
       .from('user_albums')
       .delete()
       .eq('user_id', userId)
-      .eq('album', albumName.trim());
+      .ilike('album', albumName.trim());
   } catch (err) {
     console.warn('Supabase deleteUserAlbum exception:', err);
   }

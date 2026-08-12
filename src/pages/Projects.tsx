@@ -1,7 +1,10 @@
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import MusicDashboard from '../components/MusicDashboard';
 
 const Projects = () => {
+  const navigate = useNavigate();
+
   return (
     <div className="container mx-auto px-6 py-12 max-w-6xl">
       <motion.div
@@ -21,7 +24,10 @@ const Projects = () => {
             A personal Letterboxd for albums — every record I've listened to, rated out of 10, with live data visualizations across genre, era, and listening stats. Built with React, TypeScript, and the iTunes API.
           </p>
         </div>
-        <MusicDashboard />
+        <MusicDashboard
+          onAddAlbumClick={() => navigate('/intake')}
+          onEditAlbum={() => navigate('/intake')}
+        />
       </div>
     </div>
   );
