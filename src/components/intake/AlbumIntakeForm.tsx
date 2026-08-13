@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, AlertCircle, CheckCircle2, ArrowRight, AlertTriangle, Pencil } from 'lucide-react';
 import RatingInput from './RatingInput';
 import ReviewScreen from './ReviewScreen';
-import PlatformSelector from './PlatformSelector';
 import {
   appendAlbumToGitHub,
   getUserAlbums,
@@ -42,7 +41,6 @@ export default function AlbumIntakeForm({
   const [albumName, setAlbumName] = useState('');
   const [artistName, setArtistName] = useState('');
   const [rating, setRating] = useState('');
-  const [customStreamingLink, setCustomStreamingLink] = useState('');
 
   // Draft (pre-populated with editAlbum in edit mode)
   const [draft, setDraft] = useState<AlbumEntry | null>(editAlbum ?? null);
@@ -103,9 +101,6 @@ export default function AlbumIntakeForm({
     setFormState('ENRICHING');
     try {
       const enriched = await enrichAlbumData(albumName.trim(), artistName.trim(), numRating);
-      if (customStreamingLink) {
-        enriched.AppleMusicLink = customStreamingLink;
-      }
       setDraft(enriched);
       setFormState('REVIEW');
     } catch (err) {
@@ -215,16 +210,6 @@ export default function AlbumIntakeForm({
                     />
                   </div>
                 </div>
-
-                <PlatformSelector
-                  albumName={albumName}
-                  artistName={artistName}
-                  currentLink={customStreamingLink}
-                  onSelectPlatform={(_platform, generatedLink) => {
-                    setCustomStreamingLink(generatedLink);
-                  }}
-                  title="Where did you listen to this album?"
-                />
 
                 <RatingInput value={rating} onChange={setRating} />
 

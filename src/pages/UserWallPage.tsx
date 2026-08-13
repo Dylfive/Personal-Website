@@ -2,12 +2,13 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Star, Calendar, Music, ExternalLink, Search,
+  Star, Calendar, Music, Search,
   X, ArrowLeft, AlignLeft, Trophy, Palette, Loader2,
 } from 'lucide-react';
 import { getUserAlbumsForProfile, getUserProfile } from '../lib/profileStore';
 import type { AlbumEntry } from '../types/album';
 import type { UserProfile } from '../lib/profileStore';
+import ViewingPlatformButtons from '../components/ViewingPlatformButtons';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function generateGradient(seed: string): string {
@@ -310,16 +311,11 @@ function WallDetailModal({
             )}
             </div>
 
-          {album.AppleMusicLink && (
-            <a
-              href={album.AppleMusicLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/15 text-white/65 hover:text-white hover:border-[color:var(--accent-primary)]/40 hover:bg-white/5 transition-all text-sm font-semibold mb-6"
-            >
-              <ExternalLink className="w-3.5 h-3.5" /> Listen
-            </a>
-          )}
+          <ViewingPlatformButtons
+            albumName={String(album.Album)}
+            artistName={album.Artist}
+            appleMusicLink={album.AppleMusicLink}
+          />
 
           <div className="h-px bg-white/[0.06] mb-6" />
 

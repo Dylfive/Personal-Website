@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Save, ArrowLeft, Disc3, Calendar, Clock, Music, AlertTriangle, Loader2, ImageIcon, Link as LinkIcon, Trash2, AlertCircle, Star, RefreshCw } from 'lucide-react';
 import type { AlbumEntry } from '../../types/album';
-import PlatformSelector from './PlatformSelector';
-import { fetchMusicBrainzMetadata, fetchGeminiMetadataFallback } from '../../lib/albumMetadata';
+import { cycleAlbumMetadata } from '../../lib/albumMetadata';
 
 interface ReviewScreenProps {
   draft: AlbumEntry;
@@ -67,6 +66,7 @@ export default function ReviewScreen({ draft, onSave, onBack, onDelete, isSubmit
   const [googleSearchError, setGoogleSearchError] = useState<string | null>(null);
   const [isRecalculating, setIsRecalculating] = useState(false);
   const [recalculateMessage, setRecalculateMessage] = useState<string | null>(null);
+  const [cycleIndex, setCycleIndex] = useState(0);
 
   useEffect(() => {
     setEditedDraft({
@@ -85,29 +85,20 @@ export default function ReviewScreen({ draft, onSave, onBack, onDelete, isSubmit
     setIsRecalculating(true);
     setRecalculateMessage(null);
     try {
-      // 1. Try MusicBrainz
-      const mbRes = await fetchMusicBrainzMetadata(String(editedDraft.Album), editedDraft.Artist);
-      if (mbRes.length || mbRes.trackCount) {
-        if (mbRes.length) handleChange('Length', mbRes.length);
-        if (mbRes.trackCount) handleChange('TrackCount', mbRes.trackCount);
-        if (mbRes.releaseYear) handleChange('Release Year', mbRes.releaseYear);
-        setRecalculateMessage('Updated length & tracks from MusicBrainz!');
-        setIsRecalculating(false);
-        return;
-      }
+      const res = await cycleAlbumMetadata(String(editedDraft.Album), editedDraft.Artist, cycleIndex);
+      setCycleIndex(res.nextIndex);
 
-      // 2. Try Gemini AI fallback
-      const geminiRes = await fetchGeminiMetadataFallback(String(editedDraft.Album), editedDraft.Artist);
-      if (geminiRes.length || geminiRes.trackCount) {
-        if (geminiRes.length) handleChange('Length', geminiRes.length);
-        if (geminiRes.trackCount) handleChange('TrackCount', geminiRes.trackCount);
-        if (geminiRes.releaseYear) handleChange('Release Year', geminiRes.releaseYear);
-        setRecalculateMessage('Updated length & tracks from Gemini AI!');
-        setIsRecalculating(false);
-        return;
-      }
+      if (res.length) handleChange('Length', res.length);
+      if (res.trackCount) handleChange('TrackCount', res.trackCount);
+      if (res.releaseYear) handleChange('Release Year', res.releaseYear);
 
-      setRecalculateMessage('No alternative metadata found. Please adjust manually if needed.');
+      const infoParts: string[] = [];
+      if (res.trackCount) infoParts.push(`${res.trackCount} tracks`);
+      if (res.length) infoParts.push(res.length);
+
+      setRecalculateMessage(
+        `Source: ${res.sourceLabel} ${infoParts.length ? `(${infoParts.join(', ')})` : ''}`
+      );
     } catch (err) {
       setRecalculateMessage('Failed to recalculate metadata.');
     } finally {
@@ -227,7 +218,7 @@ export default function ReviewScreen({ draft, onSave, onBack, onDelete, isSubmit
               className="inline-flex items-center gap-1.5 px-3 py-1 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 text-purple-300 rounded-full text-sm font-bold transition-colors disabled:opacity-50"
             >
               <RefreshCw className={`w-4 h-4 ${isRecalculating ? 'animate-spin' : ''}`} />
-              Recalculate Length/Tracks
+              Cycle Databases (Length/Tracks)
             </button>
           </div>
           {recalculateMessage && (
@@ -331,7 +322,7 @@ export default function ReviewScreen({ draft, onSave, onBack, onDelete, isSubmit
           />
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-2 sm:col-span-2">
           <label className="flex items-center gap-2 text-sm font-medium text-white/70">
             <Star className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} /> Rating (0.0 - 10.0)
           </label>
@@ -352,28 +343,7 @@ export default function ReviewScreen({ draft, onSave, onBack, onDelete, isSubmit
             className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-[color:var(--accent-secondary)] text-white font-mono"
           />
         </div>
-        <div className="space-y-2 sm:col-span-2">
-          <label className="flex items-center gap-2 text-sm font-medium text-white/70">
-            <LinkIcon className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} /> Streaming Link
-          </label>
-          <input
-            type="url"
-            value={editedDraft.AppleMusicLink ?? ''}
-            onChange={(e) => handleChange('AppleMusicLink', e.target.value)}
-            placeholder="Paste a Spotify, Apple Music, or any streaming URL..."
-            className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-[color:var(--accent-secondary)] text-white text-sm font-mono"
-          />
-        </div>
       </div>
-
-      <PlatformSelector
-        albumName={String(editedDraft.Album)}
-        artistName={editedDraft.Artist}
-        currentLink={editedDraft.AppleMusicLink}
-        onSelectPlatform={(_platform, generatedLink) => {
-          handleChange('AppleMusicLink', generatedLink);
-        }}
-      />
 
       {error && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">

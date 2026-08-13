@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Search, X, Star, Calendar, Clock, Music, ExternalLink,
+  Search, X, Star, Calendar, Clock, Music,
   Disc3, Sparkles, Loader2, ChevronLeft, ChevronRight,
   FlaskConical, Palette, AlignLeft, RefreshCw,
 } from 'lucide-react';
@@ -10,6 +10,7 @@ import { getUserAlbums } from '../lib/albumStore';
 import { getAlbumRecommendations } from '../lib/aiEnrichment';
 import type { AlbumEntry } from '../types/album';
 import type { AlbumRecommendation } from '../lib/aiEnrichment';
+import ViewingPlatformButtons from '../components/ViewingPlatformButtons';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -473,17 +474,11 @@ function AlbumDetailModal({
             )}
           </div>
 
-          {/* Apple Music link */}
-          {album.AppleMusicLink && (
-            <a
-              href={album.AppleMusicLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/15 text-white/65 hover:text-white hover:border-accent-amber/40 hover:bg-accent-amber/8 transition-all text-sm font-semibold mb-6"
-            >
-              <ExternalLink className="w-3.5 h-3.5" /> Listen on Apple Music
-            </a>
-          )}
+          <ViewingPlatformButtons
+            albumName={String(album.Album)}
+            artistName={album.Artist}
+            appleMusicLink={album.AppleMusicLink}
+          />
 
           {/* More by same artist */}
           {sameArtist.length > 0 && (

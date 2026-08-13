@@ -2,7 +2,8 @@ export interface MetadataFallbackResult {
   trackCount?: number;
   length?: string; // HH:MM:SS format
   releaseYear?: number;
-  source: 'musicbrainz' | 'gemini' | 'wikipedia' | 'none';
+  source: 'musicbrainz' | 'itunes' | 'gemini' | 'wikipedia' | 'none';
+  sourceLabel?: string;
 }
 
 /** Formats milliseconds into HH:MM:SS */
@@ -20,8 +21,7 @@ export function formatMsToHMS(ms: number): string {
 }
 
 /** 
- * Queries MusicBrainz API for standard LP release track count and total length.
- * MusicBrainz does not require an API key, but requires a custom User-Agent.
+ * 1. Queries MusicBrainz API for standard LP release track count and total length.
  */
 export async function fetchMusicBrainzMetadata(
   albumName: string,
@@ -31,7 +31,6 @@ export async function fetchMusicBrainzMetadata(
     const cleanAlbum = encodeURIComponent(albumName.trim());
     const cleanArtist = encodeURIComponent(artistName.trim());
 
-    // 1. Search for release group (Album type)
     const searchUrl = `https://musicbrainz.org/ws/2/release-group/?query=releasegroup:"${cleanAlbum}" AND artist:"${cleanArtist}"&fmt=json`;
     const searchRes = await fetch(searchUrl, {
       headers: {
@@ -49,7 +48,6 @@ export async function fetchMusicBrainzMetadata(
       return { source: 'none' };
     }
 
-    // Find primary "Album" type (avoid live/compilation if possible)
     let targetGroup = releaseGroups.find(
       (rg: any) =>
         rg['primary-type'] === 'Album' &&
@@ -65,7 +63,6 @@ export async function fetchMusicBrainzMetadata(
       ? parseInt(targetGroup['first-release-date'].substring(0, 4))
       : undefined;
 
-    // 2. Fetch official releases under this release group to get track duration & count
     const releasesUrl = `https://musicbrainz.org/ws/2/release/?release-group=${rgId}&inc=recordings&fmt=json`;
     const releasesRes = await fetch(releasesUrl, {
       headers: {
@@ -74,16 +71,15 @@ export async function fetchMusicBrainzMetadata(
     });
 
     if (!releasesRes.ok) {
-      return { releaseYear, source: 'musicbrainz' };
+      return { releaseYear, source: 'musicbrainz', sourceLabel: 'MusicBrainz' };
     }
 
     const releasesData = await releasesRes.json();
     const releases = releasesData.releases || [];
     if (releases.length === 0) {
-      return { releaseYear, source: 'musicbrainz' };
+      return { releaseYear, source: 'musicbrainz', sourceLabel: 'MusicBrainz' };
     }
 
-    // Prefer official digital or CD releases with valid media/tracks
     let bestRelease = releases.find(
       (r: any) => r.status === 'Official' && r.media && r.media.length > 0
     );
@@ -114,16 +110,67 @@ export async function fetchMusicBrainzMetadata(
       length: formattedLength,
       releaseYear,
       source: 'musicbrainz',
+      sourceLabel: 'MusicBrainz',
     };
   } catch (err) {
-    console.warn('MusicBrainz metadata fallback fetch failed:', err);
+    console.warn('MusicBrainz fetch failed:', err);
+    return { source: 'none' };
+  }
+}
+
+/**
+ * 2. Queries iTunes Search API for alternative collection match & track durations.
+ */
+export async function fetchItunesMetadata(
+  albumName: string,
+  artistName: string
+): Promise<MetadataFallbackResult> {
+  try {
+    const query = encodeURIComponent(`${albumName} ${artistName}`);
+    const res = await fetch(`https://itunes.apple.com/search?term=${query}&entity=album&limit=10`);
+    if (!res.ok) return { source: 'none' };
+
+    const data = await res.json();
+    if (!data.results || data.results.length === 0) return { source: 'none' };
+
+    // Select standard studio album
+    const top = data.results.find((r: any) =>
+      r.trackCount > 3 &&
+      !r.collectionName.toLowerCase().includes('- single') &&
+      !r.collectionName.toLowerCase().includes('- ep')
+    ) || data.results[0];
+
+    const trackCount = top.trackCount || 0;
+    const releaseYear = top.releaseDate ? parseInt(top.releaseDate.substring(0, 4)) : undefined;
+    let calculatedLength: string | undefined = undefined;
+
+    if (top.collectionId) {
+      const tracksRes = await fetch(`https://itunes.apple.com/lookup?id=${top.collectionId}&entity=song`);
+      if (tracksRes.ok) {
+        const tracksData = await tracksRes.json();
+        if (tracksData.results && tracksData.results.length > 1) {
+          const songs = tracksData.results.filter((r: any) => r.wrapperType === 'track');
+          const totalMs = songs.reduce((sum: number, song: any) => sum + (song.trackTimeMillis || 0), 0);
+          if (totalMs > 0) calculatedLength = formatMsToHMS(totalMs);
+        }
+      }
+    }
+
+    return {
+      trackCount: trackCount > 0 ? trackCount : undefined,
+      length: calculatedLength,
+      releaseYear,
+      source: 'itunes',
+      sourceLabel: 'iTunes Search',
+    };
+  } catch (err) {
+    console.warn('iTunes fetch failed:', err);
     return { source: 'none' };
   }
 }
 
 /** 
- * Prompts Gemini AI to return standard original studio album length and track count 
- * when APIs return ambiguous or bloated Deluxe Edition metadata.
+ * 3. Prompts Gemini AI to return standard original studio album length and track count.
  */
 export async function fetchGeminiMetadataFallback(
   albumName: string,
@@ -139,11 +186,10 @@ export async function fetchGeminiMetadataFallback(
 Album: "${albumName}"
 Artist: "${artistName}"
 
-Note: Return info for the STANDARD ORIGINAL STUDIO RELEASE only (do NOT include deluxe bonus tracks, live tracks, commentary, or anniversary bonus disks).
+Return ONLY info for the STANDARD ORIGINAL STUDIO RELEASE (no deluxe bonus tracks, live tracks, or commentary).
 
 Return ONLY a JSON object in this exact format:
-{"trackCount": 10, "length": "00:42:15", "releaseYear": 1973}
-If unknown, set values to null.`;
+{"trackCount": 10, "length": "00:42:15", "releaseYear": 1973}`;
 
   try {
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
@@ -168,16 +214,86 @@ If unknown, set values to null.`;
       length: typeof parsed.length === 'string' && parsed.length.includes(':') ? parsed.length : undefined,
       releaseYear: typeof parsed.releaseYear === 'number' ? parsed.releaseYear : undefined,
       source: 'gemini',
+      sourceLabel: 'Gemini AI',
     };
   } catch (err) {
-    console.warn('Gemini metadata fallback fetch failed:', err);
+    console.warn('Gemini fetch failed:', err);
     return { source: 'none' };
   }
 }
 
 /**
- * Validates album metadata and applies fallbacks if iTunes data is missing,
- * has 0 tracks, or appears inflated (>25 tracks or >2.5 hours length).
+ * 4. Queries Wikipedia REST API / MediaWiki API for album metadata.
+ */
+export async function fetchWikipediaMetadata(
+  albumName: string,
+  artistName: string
+): Promise<MetadataFallbackResult> {
+  try {
+    const title = `${albumName} (${artistName} album)`;
+    const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
+    const res = await fetch(url);
+    if (!res.ok) return { source: 'none' };
+
+    const data = await res.json();
+    const extract = data.extract || '';
+
+    // Search extract text for release year
+    const yearMatch = extract.match(/\b(19\d\d|20\d\d)\b/);
+    const releaseYear = yearMatch ? parseInt(yearMatch[1]) : undefined;
+
+    return {
+      releaseYear,
+      source: 'wikipedia',
+      sourceLabel: 'Wikipedia REST API',
+    };
+  } catch (err) {
+    console.warn('Wikipedia fetch failed:', err);
+    return { source: 'none' };
+  }
+}
+
+export const CYCLE_SOURCES = [
+  { name: 'MusicBrainz', fetcher: fetchMusicBrainzMetadata },
+  { name: 'iTunes API', fetcher: fetchItunesMetadata },
+  { name: 'Gemini AI', fetcher: fetchGeminiMetadataFallback },
+  { name: 'Wikipedia API', fetcher: fetchWikipediaMetadata },
+];
+
+/**
+ * Cycles sequentially through metadata databases on each call.
+ */
+export async function cycleAlbumMetadata(
+  albumName: string,
+  artistName: string,
+  currentIndex: number
+): Promise<MetadataFallbackResult & { nextIndex: number }> {
+  const totalSources = CYCLE_SOURCES.length;
+  let nextIndex = (currentIndex + 1) % totalSources;
+
+  for (let i = 0; i < totalSources; i++) {
+    const sourceIdx = (currentIndex + i) % totalSources;
+    const source = CYCLE_SOURCES[sourceIdx];
+    const res = await source.fetcher(albumName, artistName);
+
+    if (res.length || res.trackCount || res.releaseYear) {
+      return {
+        ...res,
+        sourceLabel: source.name,
+        nextIndex: (sourceIdx + 1) % totalSources,
+      };
+    }
+  }
+
+  return {
+    source: 'none',
+    sourceLabel: 'No alternative found',
+    nextIndex,
+  };
+}
+
+/**
+ * Validates album metadata and applies fallbacks automatically during initial enrichment.
  */
 export async function validateAndFixAlbumMetadata(
   albumName: string,
@@ -194,7 +310,6 @@ export async function validateAndFixAlbumMetadata(
 }> {
   let isSuspicious = false;
 
-  // Check if iTunes metadata looks missing or bloated
   if (!currentTrackCount || currentTrackCount === 0 || currentTrackCount > 25) {
     isSuspicious = true;
   }
@@ -213,7 +328,6 @@ export async function validateAndFixAlbumMetadata(
     };
   }
 
-  // 1. Try MusicBrainz
   const mbResult = await fetchMusicBrainzMetadata(albumName, artistName);
   let finalTrackCount = mbResult.trackCount ?? currentTrackCount;
   let finalLength = mbResult.length ?? currentLength;
@@ -229,7 +343,6 @@ export async function validateAndFixAlbumMetadata(
     };
   }
 
-  // 2. Try Gemini AI fallback
   const geminiResult = await fetchGeminiMetadataFallback(albumName, artistName);
   if (geminiResult.trackCount) finalTrackCount = geminiResult.trackCount;
   if (geminiResult.length && geminiResult.length !== '00:00:00') finalLength = geminiResult.length;
