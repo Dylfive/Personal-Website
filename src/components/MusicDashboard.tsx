@@ -848,8 +848,8 @@ const AlbumList = ({
 
                         {toggles.genre && album.Genre && (
                           <>
-                            <span className="w-1 h-1 rounded-full bg-white/20 hidden xs:inline-block" />
-                            <span className="text-[10px] uppercase tracking-wider text-white/40 truncate max-w-[100px] hidden xs:inline">
+                            <span className="w-1 h-1 rounded-full bg-white/20 inline-block" />
+                            <span className="text-[10px] uppercase tracking-wider text-white/40 truncate max-w-[120px] inline-block">
                               {album.Genre.split(',')[0]}
                             </span>
                           </>

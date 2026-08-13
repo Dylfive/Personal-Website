@@ -2,14 +2,11 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronRight, Music, Star, Calendar, Clock,
-  Trophy, Disc3, Search, ArrowUpDown, BarChart2, Pencil
+  Trophy, Disc3, Search, ArrowUpDown, BarChart2
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { AlbumEntry } from '../types/album';
 import rawAlbumData from '../data/Album-Data.json';
-import { useAuth } from '../contexts/AuthContext';
-import { useTheme } from '../contexts/ThemeContext';
-import { updateUserAlbum } from '../lib/albumStore';
 
 type SortOption = 'rating' | 'year_desc' | 'year_asc' | 'title' | 'artist';
 
@@ -199,69 +196,14 @@ const RatingsChart = ({ albums }: { albums: AlbumEntry[] }) => {
           <span className="w-1.5 h-1.5 rounded-full bg-[color:var(--accent-primary)] inline-block animate-pulse" />
           Scroll or drag to explore
         </span>
-        <span className="text-[10px] text-white/30 font-mono">10.0 →</span>
       </div>
     </div>
   );
 };
-
-// ─── Inline Title/Artist Editor for Wall ─────────────────────────────────────
-const InlineWallEditor = ({
-  album,
-  onSave,
-  onCancel,
-}: {
-  album: AlbumEntry;
-  onSave: (updated: AlbumEntry) => void;
-  onCancel: () => void;
-}) => {
-  const [title, setTitle] = useState(String(album.Album));
-  const [artist, setArtist] = useState(album.Artist);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim() || !artist.trim()) return;
-    onSave({ ...album, Album: title.trim(), Artist: artist.trim() });
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="flex-1 flex flex-col gap-2 p-1" onClick={(e) => e.stopPropagation()}>
-      <input
-        type="text"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        className="w-full bg-white/10 border border-white/20 rounded-lg px-2.5 py-1 text-sm font-bold text-white focus:outline-none focus:border-[color:var(--accent-primary)]"
-        placeholder="Album Title"
-        autoFocus
-      />
-      <input
-        type="text"
-        value={artist}
-        onChange={(e) => setArtist(e.target.value)}
-        className="w-full bg-white/10 border border-white/20 rounded-lg px-2.5 py-1 text-xs text-[color:var(--accent-primary)] focus:outline-none focus:border-[color:var(--accent-primary)]"
-        placeholder="Artist Name"
-      />
-      <div className="flex gap-2 justify-end mt-1">
-        <button type="button" onClick={onCancel} className="px-2 py-0.5 text-[10px] text-white/50 hover:text-white">
-          Cancel
-        </button>
-        <button type="submit" className="px-2.5 py-0.5 text-[10px] font-bold rounded bg-[color:var(--accent-primary)] text-white">
-          Save
-        </button>
-      </div>
-    </form>
-  );
-};
-
-// ─── Album List (Editable on Wall) ────────────────────────────────────────────
-const AlbumList = ({ albums, onReload }: { albums: AlbumEntry[]; onReload?: () => void }) => {
-  const { user } = useAuth();
-  const { OWNER_EMAIL } = useTheme();
-  const canEdit = !!user && user.email === OWNER_EMAIL;
+// ─── Album List (Read-only Showcase) ──────────────────────────────────────────
+const AlbumList = ({ albums }: { albums: AlbumEntry[] }) => {
   const [sortBy, setSortBy] = useState<SortOption>('rating');
   const [searchQuery, setSearchQuery] = useState('');
-  const [editingKey, setEditingKey] = useState<string | null>(null);
-  const [editMode, setEditMode] = useState<boolean>(false);
 
   const filteredAndSorted = useMemo(() => {
     const query = searchQuery.toLowerCase();
@@ -283,13 +225,6 @@ const AlbumList = ({ albums, onReload }: { albums: AlbumEntry[]; onReload?: () =
     return result;
   }, [albums, searchQuery, sortBy]);
 
-  const handleSaveInline = async (originalName: string, updated: AlbumEntry) => {
-    if (!user?.id) return;
-    await updateUserAlbum(user.id, originalName, updated);
-    setEditingKey(null);
-    onReload?.();
-  };
-
   return (
     <div className="glass-panel rounded-3xl border border-white/10 overflow-hidden flex flex-col h-full">
       <div className="p-6 border-b border-white/10 bg-black/20">
@@ -305,20 +240,6 @@ const AlbumList = ({ albums, onReload }: { albums: AlbumEntry[]; onReload?: () =
             />
           </div>
           <div className="flex items-center gap-3 w-full sm:w-auto">
-            {canEdit && (
-              <button
-                onClick={() => setEditMode((prev) => !prev)}
-                className={`px-3.5 py-2 rounded-full text-xs font-semibold border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                  editMode
-                    ? 'bg-[color:var(--accent-primary)]/20 border-[color:var(--accent-primary)]/50 text-[color:var(--accent-primary)] shadow-sm'
-                    : 'bg-white/5 border-white/10 text-white/60 hover:text-white hover:bg-white/10'
-                }`}
-                title={editMode ? 'Hide edit buttons' : 'Show edit buttons'}
-              >
-                <Pencil className="w-3.5 h-3.5" />
-                <span>{editMode ? 'Done' : 'Edit'}</span>
-              </button>
-            )}
             <div className="relative flex-1 sm:flex-none min-w-[160px]">
               <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
               <select
@@ -351,8 +272,6 @@ const AlbumList = ({ albums, onReload }: { albums: AlbumEntry[]; onReload?: () =
             const hasCover = album.CoverArt && album.CoverArt !== 'Not Found';
             const isRatingSort = sortBy === 'rating';
             const globalRank = isRatingSort ? albums.findIndex(a => a.Album === album.Album && a.Artist === album.Artist) + 1 : null;
-            const itemKey = `${album.Album}-${album.Artist}`;
-            const isEditing = editingKey === itemKey;
 
             return (
               <motion.div
@@ -379,56 +298,30 @@ const AlbumList = ({ albums, onReload }: { albums: AlbumEntry[]; onReload?: () =
                   )}
                 </div>
 
-                {isEditing ? (
-                  <InlineWallEditor
-                    album={album}
-                    onSave={(updated) => handleSaveInline(String(album.Album), updated)}
-                    onCancel={() => setEditingKey(null)}
-                  />
-                ) : (
-                  <div className="flex-1 min-w-0 flex flex-col justify-center">
-                    <h4
-                      onClick={() => canEdit && editMode && setEditingKey(itemKey)}
-                      className={`text-base sm:text-lg font-bold text-white truncate ${canEdit && editMode ? 'hover:underline cursor-pointer' : ''}`}
-                      title={canEdit && editMode ? 'Click to edit title & artist' : undefined}
-                    >
-                      {String(album.Album)}
-                    </h4>
-                    <p
-                      onClick={() => canEdit && editMode && setEditingKey(itemKey)}
-                      className={`text-xs sm:text-sm text-[color:var(--accent-primary)] truncate ${canEdit && editMode ? 'hover:underline cursor-pointer' : ''}`}
-                    >
-                      {album.Artist}
-                    </p>
+                <div className="flex-1 min-w-0 flex flex-col justify-center">
+                  <h4 className="text-base sm:text-lg font-bold text-white truncate">
+                    {String(album.Album)}
+                  </h4>
+                  <p className="text-xs sm:text-sm text-[color:var(--accent-primary)] truncate">
+                    {album.Artist}
+                  </p>
 
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5">
-                      <div className="flex items-center gap-1">
-                        <Star className="w-3 h-3 text-[color:var(--accent-primary)] fill-[color:var(--accent-primary)]" />
-                        <span className="text-xs font-bold text-white">{album.Rating.toFixed(1)}</span>
-                      </div>
-                      <span className="w-1 h-1 rounded-full bg-white/20" />
-                      <div className="flex items-center gap-1 text-white/50 text-xs">
-                        <Calendar className="w-3 h-3" />
-                        <span>{album['Release Year']}</span>
-                      </div>
-                      <span className="w-1 h-1 rounded-full bg-white/20 hidden xs:inline-block" />
-                      <span className="text-[10px] uppercase tracking-wider text-white/40 truncate max-w-[100px] hidden xs:inline">
-                        {album.Genre.split(',')[0]}
-                      </span>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5">
+                    <div className="flex items-center gap-1">
+                      <Star className="w-3 h-3 text-[color:var(--accent-primary)] fill-[color:var(--accent-primary)]" />
+                      <span className="text-xs font-bold text-white">{album.Rating.toFixed(1)}</span>
                     </div>
+                    <span className="w-1 h-1 rounded-full bg-white/20" />
+                    <div className="flex items-center gap-1 text-white/50 text-xs">
+                      <Calendar className="w-3 h-3" />
+                      <span>{album['Release Year']}</span>
+                    </div>
+                    <span className="w-1 h-1 rounded-full bg-white/20 inline-block" />
+                    <span className="text-[10px] uppercase tracking-wider text-white/40 truncate max-w-[120px] inline-block">
+                      {album.Genre.split(',')[0]}
+                    </span>
                   </div>
-                )}
-
-                {/* Edit Button on Album Wall — owner only when edit mode is active */}
-                {canEdit && editMode && (
-                  <button
-                    onClick={() => setEditingKey(itemKey)}
-                    title="Edit album title or artist"
-                    className="flex-shrink-0 p-2 rounded-full border border-white/10 text-white/30 hover:text-[color:var(--accent-primary)] hover:border-[color:var(--accent-primary)]/40 hover:bg-white/5 transition-all duration-200"
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </button>
-                )}
+                </div>
               </motion.div>
             );
           }) : (
@@ -577,7 +470,7 @@ export default function OwnerWallPage() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
             {/* Album List */}
             <div className="lg:col-span-7 flex flex-col h-[950px]">
-              <AlbumList albums={baseSortedAlbums} onReload={loadWallData} />
+              <AlbumList albums={baseSortedAlbums} />
             </div>
 
             {/* Right Column */}

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, LogOut, Disc3, Music, Users, LayoutGrid, Sparkles } from 'lucide-react';
+import { Menu, X, LogOut, Disc3, Music, Users, LayoutGrid, Sparkles, FileText } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 
@@ -105,6 +105,17 @@ const Navbar = () => {
             Dylan's Wall
           </Link>
 
+          {/* Resume */}
+          <Link
+            to="/resume"
+            className={`flex items-center gap-1.5 text-sm font-medium transition-colors hover:text-white ${
+              location.pathname === '/resume' ? 'text-[color:var(--accent-primary)]' : 'text-white/50'
+            }`}
+          >
+            <FileText className="w-4 h-4" />
+            Resume
+          </Link>
+
           {user ? (
             <div className="flex items-center gap-4 pl-4 border-l border-white/10">
               {/* My Collection */}
@@ -204,6 +215,17 @@ const Navbar = () => {
               }`}
             >
               <LayoutGrid className="w-5 h-5" /> Dylan's Wall
+            </Link>
+
+            <Link
+              to="/resume"
+              className={`flex items-center gap-2 text-base font-medium transition-colors ${
+                location.pathname === '/resume'
+                  ? 'text-[color:var(--accent-primary)]'
+                  : 'text-white/70 hover:text-[color:var(--accent-primary)]'
+              }`}
+            >
+              <FileText className="w-5 h-5" /> Resume
             </Link>
 
             {user ? (
