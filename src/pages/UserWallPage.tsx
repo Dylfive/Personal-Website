@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -206,6 +206,7 @@ function WallDetailModal({
   onNext: () => void;
   isOwner: boolean;
 }) {
+  const navigate = useNavigate();
   const hasCover = album.CoverArt && album.CoverArt !== 'Not Found';
   const secs = parseLengthToSeconds(album.Length ?? '');
   const color = ratingColor(album.Rating);
@@ -266,14 +267,13 @@ function WallDetailModal({
           {/* Close + Edit buttons */}
           <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
             {isOwner && (
-              <Link
-                to="/intake"
-                onClick={onClose}
+              <button
+                onClick={() => { onClose(); navigate('/intake', { state: { editAlbum: album } }); }}
                 className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/10 flex items-center justify-center text-white/60 hover:text-[color:var(--accent-primary)] hover:border-[color:var(--accent-primary)]/40 transition-colors"
                 title="Edit this album"
               >
                 <Pencil className="w-3.5 h-3.5" />
-              </Link>
+              </button>
             )}
             <button
               onClick={onClose}

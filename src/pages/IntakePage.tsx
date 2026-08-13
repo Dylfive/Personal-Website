@@ -1,13 +1,27 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { PlusCircle, Library, Pencil } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import AlbumIntakeForm from '../components/intake/AlbumIntakeForm';
 import MusicDashboard from '../components/MusicDashboard';
 import type { AlbumEntry } from '../types/album';
 
 export default function IntakePage() {
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState<'add' | 'collection'>('add');
   const [editingAlbum, setEditingAlbum] = useState<AlbumEntry | null>(null);
+  const didInit = useRef(false);
+
+  // Pre-populate edit state when navigated here from the wall with an album in router state
+  useEffect(() => {
+    if (didInit.current) return;
+    didInit.current = true;
+    const state = location.state as { editAlbum?: AlbumEntry } | null;
+    if (state?.editAlbum) {
+      setEditingAlbum(state.editAlbum);
+      setActiveTab('add');
+    }
+  }, [location.state]);
 
   const handleEditAlbum = (album: AlbumEntry) => {
     setEditingAlbum(album);
