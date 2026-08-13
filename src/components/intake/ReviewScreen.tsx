@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Save, ArrowLeft, Disc3, Calendar, Clock, Music, AlertTriangle, Loader2, ImageIcon, Link as LinkIcon, Trash2, AlertCircle, Star } from 'lucide-react';
+import { Save, ArrowLeft, Disc3, Calendar, Clock, Music, AlertTriangle, Loader2, ImageIcon, Link as LinkIcon, Trash2, AlertCircle, Star, RefreshCw } from 'lucide-react';
 import type { AlbumEntry } from '../../types/album';
+import PlatformSelector from './PlatformSelector';
+import { fetchMusicBrainzMetadata, fetchGeminiMetadataFallback } from '../../lib/albumMetadata';
 
 interface ReviewScreenProps {
   draft: AlbumEntry;
@@ -63,6 +65,8 @@ export default function ReviewScreen({ draft, onSave, onBack, onDelete, isSubmit
   const [isSearchingGoogle, setIsSearchingGoogle] = useState(false);
   const [googleImages, setGoogleImages] = useState<string[]>([]);
   const [googleSearchError, setGoogleSearchError] = useState<string | null>(null);
+  const [isRecalculating, setIsRecalculating] = useState(false);
+  const [recalculateMessage, setRecalculateMessage] = useState<string | null>(null);
 
   useEffect(() => {
     setEditedDraft({
@@ -75,6 +79,40 @@ export default function ReviewScreen({ draft, onSave, onBack, onDelete, isSubmit
 
   const handleChange = (field: keyof AlbumEntry, value: string | number) => {
     setEditedDraft(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleRecalculateFallback = async () => {
+    setIsRecalculating(true);
+    setRecalculateMessage(null);
+    try {
+      // 1. Try MusicBrainz
+      const mbRes = await fetchMusicBrainzMetadata(String(editedDraft.Album), editedDraft.Artist);
+      if (mbRes.length || mbRes.trackCount) {
+        if (mbRes.length) handleChange('Length', mbRes.length);
+        if (mbRes.trackCount) handleChange('TrackCount', mbRes.trackCount);
+        if (mbRes.releaseYear) handleChange('Release Year', mbRes.releaseYear);
+        setRecalculateMessage('Updated length & tracks from MusicBrainz!');
+        setIsRecalculating(false);
+        return;
+      }
+
+      // 2. Try Gemini AI fallback
+      const geminiRes = await fetchGeminiMetadataFallback(String(editedDraft.Album), editedDraft.Artist);
+      if (geminiRes.length || geminiRes.trackCount) {
+        if (geminiRes.length) handleChange('Length', geminiRes.length);
+        if (geminiRes.trackCount) handleChange('TrackCount', geminiRes.trackCount);
+        if (geminiRes.releaseYear) handleChange('Release Year', geminiRes.releaseYear);
+        setRecalculateMessage('Updated length & tracks from Gemini AI!');
+        setIsRecalculating(false);
+        return;
+      }
+
+      setRecalculateMessage('No alternative metadata found. Please adjust manually if needed.');
+    } catch (err) {
+      setRecalculateMessage('Failed to recalculate metadata.');
+    } finally {
+      setIsRecalculating(false);
+    }
   };
 
   const handleSaveClick = () => {
@@ -182,7 +220,19 @@ export default function ReviewScreen({ draft, onSave, onBack, onDelete, isSubmit
             >
               <ImageIcon className="w-4 h-4" /> Replace Album Art
             </button>
+            <button
+              type="button"
+              onClick={handleRecalculateFallback}
+              disabled={isRecalculating}
+              className="inline-flex items-center gap-1.5 px-3 py-1 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 text-purple-300 rounded-full text-sm font-bold transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${isRecalculating ? 'animate-spin' : ''}`} />
+              Recalculate Length/Tracks
+            </button>
           </div>
+          {recalculateMessage && (
+            <p className="text-xs text-purple-300 mt-1 font-medium">{recalculateMessage}</p>
+          )}
         </div>
       </div>
 
@@ -315,6 +365,15 @@ export default function ReviewScreen({ draft, onSave, onBack, onDelete, isSubmit
           />
         </div>
       </div>
+
+      <PlatformSelector
+        albumName={String(editedDraft.Album)}
+        artistName={editedDraft.Artist}
+        currentLink={editedDraft.AppleMusicLink}
+        onSelectPlatform={(_platform, generatedLink) => {
+          handleChange('AppleMusicLink', generatedLink);
+        }}
+      />
 
       {error && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">

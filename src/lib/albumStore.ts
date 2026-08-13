@@ -163,7 +163,8 @@ export async function updateUserAlbum(
   const normalizedNew = String(updatedAlbum.Album).toLowerCase().trim();
 
   const record = {
-    album: String(updatedAlbum.Album),
+    user_id: userId,
+    album: String(updatedAlbum.Album).trim(),
     artist: updatedAlbum.Artist,
     rating: updatedAlbum.Rating,
     genre: updatedAlbum.Genre,
@@ -178,81 +179,68 @@ export async function updateUserAlbum(
 
   let persistFailure: string | null = null;
   try {
-    if (normalizedNew === normalizedOriginal) {
-      // Same-name update: prefer an atomic in-place UPDATE and VERIFY it
-      // touched a row. We use ilike to match database rows regardless of title case.
-      let matched = false;
-      const { data, error } = await supabase
-        .from('user_albums')
-        .update(record)
-        .eq('user_id', userId)
-        .ilike('album', originalAlbumName.trim())
-        .select('album');
-      if (!error && Array.isArray(data) && data.length > 0) {
-        matched = true;
-      }
+    // 1. Try an atomic in-place UPDATE matching user_id & original album title
+    const { data, error } = await supabase
+      .from('user_albums')
+      .update(record)
+      .eq('user_id', userId)
+      .ilike('album', originalAlbumName.trim())
+      .select('*');
 
-      if (!matched) {
-        console.warn(
-          'updateUserAlbum: in-place UPDATE unavailable for',
-          originalAlbumName,
-          error ? error.message : 'matched 0 rows'
-        );
-        // Never delete-first, so a transient failure can't destroy the album.
-        const { error: insErr } = await supabase
-          .from('user_albums')
-          .insert([{ user_id: userId, ...record }]);
-        if (insErr) {
-          // Album name is still taken — clear stale copies via ilike, then retry.
-          console.warn('updateUserAlbum: replace insert conflicted, cleaning stale copies for', originalAlbumName, insErr.message);
-          const { error: staleErr } = await supabase
-            .from('user_albums')
-            .delete()
-            .eq('user_id', userId)
-            .ilike('album', originalAlbumName.trim());
-          if (staleErr) {
-            console.error('updateUserAlbum: stale-copy delete failed for', originalAlbumName, staleErr.message);
-          }
-          const { error: ins2Err } = await supabase
-            .from('user_albums')
-            .insert([{ user_id: userId, ...record }]);
-          if (ins2Err) {
-            console.error('updateUserAlbum: reinsert failed for', originalAlbumName, ins2Err.message);
-            persistFailure = `Could not save changes to "${originalAlbumName}".`;
-          }
-        } else {
-          // Fresh row is in — drop any leftover copy that isn't the row we
-          // just wrote (scoped to the written cover so the new row survives
-          // when the album name alone is shared with the old copy).
-          const { error: cleanErr } = await supabase
+    if (!error && Array.isArray(data) && data.length > 0) {
+      // Update succeeded. If duplicate rows existed in DB, clean up extras.
+      if (data.length > 1) {
+        const keepId = (data[0] as any).id;
+        if (keepId) {
+          await supabase
             .from('user_albums')
             .delete()
             .eq('user_id', userId)
             .ilike('album', originalAlbumName.trim())
-            .neq('cover_art', record.cover_art ?? '');
-          if (cleanErr) {
-            console.warn('updateUserAlbum: cleanup delete failed for', originalAlbumName, cleanErr.message);
-          }
+            .neq('id', keepId);
+        } else {
+          await supabase
+            .from('user_albums')
+            .delete()
+            .eq('user_id', userId)
+            .ilike('album', originalAlbumName.trim());
+          await supabase.from('user_albums').insert([record]);
         }
       }
-    } else {
-      // Rename: insert the NEW row first, and only delete the old row if the
-      // insert succeeded — a transient failure can then never destroy the album.
-      const { error: insertErr } = await supabase.from('user_albums').insert([
-        { user_id: userId, ...record },
-      ]);
-      if (insertErr) {
-        console.error('Supabase rename insert warning:', insertErr.message);
-        persistFailure = `Could not save renamed album "${updatedAlbum.Album}": ${insertErr.message}`;
-      } else {
-        const { error: deleteErr } = await supabase
+
+      // If the title changed (rename), delete any leftover rows under the old title
+      if (normalizedNew !== normalizedOriginal) {
+        await supabase
           .from('user_albums')
           .delete()
           .eq('user_id', userId)
           .ilike('album', originalAlbumName.trim());
-        if (deleteErr) {
-          console.error('Supabase rename delete warning:', deleteErr.message);
-        }
+      }
+    } else {
+      // 2. Fallback: UPDATE matched 0 rows (e.g. rename or case mismatch).
+      // Delete old and new name rows, then insert 1 clean single row.
+      console.warn('updateUserAlbum: UPDATE matched 0 rows, re-converging for:', originalAlbumName);
+      await supabase
+        .from('user_albums')
+        .delete()
+        .eq('user_id', userId)
+        .ilike('album', originalAlbumName.trim());
+
+      if (normalizedNew !== normalizedOriginal) {
+        await supabase
+          .from('user_albums')
+          .delete()
+          .eq('user_id', userId)
+          .ilike('album', String(updatedAlbum.Album).trim());
+      }
+
+      const { error: insErr } = await supabase
+        .from('user_albums')
+        .insert([record]);
+
+      if (insErr) {
+        console.error('updateUserAlbum insert error:', insErr.message);
+        persistFailure = `Could not save changes to "${updatedAlbum.Album}": ${insErr.message}`;
       }
     }
   } catch (err) {

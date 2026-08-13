@@ -311,7 +311,22 @@ export async function getUserAlbumsForProfile(
       return (a.RankOrder ?? 999) - (b.RankOrder ?? 999);
     });
 
-    return parsed;
+    // Deduplicate by album title (case-insensitive) to prevent duplicate wall tiles
+    const uniqueByAlbum = new Map<string, AlbumEntry>();
+    for (const a of parsed) {
+      const k = String(a.Album).toLowerCase().trim();
+      const prev = uniqueByAlbum.get(k);
+      if (!prev) {
+        uniqueByAlbum.set(k, a);
+      } else if (prev.RankOrder === undefined && a.RankOrder !== undefined) {
+        uniqueByAlbum.set(k, a);
+      }
+    }
+
+    return [...uniqueByAlbum.values()].sort((a, b) => {
+      if (b.Rating !== a.Rating) return b.Rating - a.Rating;
+      return (a.RankOrder ?? 999) - (b.RankOrder ?? 999);
+    });
   } catch {
     return [];
   }

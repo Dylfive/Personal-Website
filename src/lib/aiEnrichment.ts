@@ -1,4 +1,5 @@
 import type { AlbumEntry } from '../types/album';
+import { validateAndFixAlbumMetadata } from './albumMetadata';
 
 export interface AlbumRecommendation {
   title: string;
@@ -182,12 +183,29 @@ Genres:`;
     console.warn('GEMINI_API_KEY missing from Admin Settings, using iTunes primary genre fallback.');
   }
 
+  // 4. Validate & Fallback check for Track Count and Total Length (MusicBrainz & Gemini)
+  let releaseYear = exactReleaseDate ? parseInt(exactReleaseDate.substring(0, 4)) : new Date().getFullYear();
+  try {
+    const validated = await validateAndFixAlbumMetadata(
+      albumName,
+      artistName,
+      trackCount,
+      calculatedLength,
+      releaseYear
+    );
+    trackCount = validated.trackCount;
+    calculatedLength = validated.length;
+    releaseYear = validated.releaseYear;
+  } catch (fallbackErr) {
+    console.warn('Fallback validation failed:', fallbackErr);
+  }
+
   return {
     Album: albumName,
     Artist: artistName,
     Rating: rating,
     Genre: genres,
-    "Release Year": exactReleaseDate ? parseInt(exactReleaseDate.substring(0, 4)) : new Date().getFullYear(),
+    "Release Year": releaseYear,
     Length: calculatedLength,
     CoverArt: coverArt,
     AppleMusicLink: appleMusicLink,
