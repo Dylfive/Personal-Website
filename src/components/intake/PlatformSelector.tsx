@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { ExternalLink } from 'lucide-react';
 
 export type PlatformId = 'spotify' | 'apple' | 'youtube' | 'tidal' | 'musicbrainz';
 
 interface PlatformOption {
   id: PlatformId;
   name: string;
+  shortName?: string;
   icon: string;
   color: string;
   bgHover: string;
@@ -17,6 +17,7 @@ export const PLATFORMS: PlatformOption[] = [
   {
     id: 'spotify',
     name: 'Spotify',
+    shortName: 'Spotify',
     icon: '🟢',
     color: '#1DB954',
     bgHover: 'hover:bg-[#1DB954]/20',
@@ -27,6 +28,7 @@ export const PLATFORMS: PlatformOption[] = [
   {
     id: 'apple',
     name: 'Apple Music',
+    shortName: 'Apple Music',
     icon: '🍎',
     color: '#FA243C',
     bgHover: 'hover:bg-[#FA243C]/20',
@@ -37,6 +39,7 @@ export const PLATFORMS: PlatformOption[] = [
   {
     id: 'youtube',
     name: 'YouTube Music',
+    shortName: 'YT Music',
     icon: '🔴',
     color: '#FF0000',
     bgHover: 'hover:bg-[#FF0000]/20',
@@ -47,6 +50,7 @@ export const PLATFORMS: PlatformOption[] = [
   {
     id: 'tidal',
     name: 'Tidal',
+    shortName: 'Tidal',
     icon: '🌊',
     color: '#00FFFF',
     bgHover: 'hover:bg-[#00FFFF]/20',
@@ -57,6 +61,7 @@ export const PLATFORMS: PlatformOption[] = [
   {
     id: 'musicbrainz',
     name: 'MusicBrainz',
+    shortName: 'MusicBrainz',
     icon: '🛈',
     color: '#BA478F',
     bgHover: 'hover:bg-[#BA478F]/20',
@@ -105,15 +110,15 @@ export default function PlatformSelector({
   };
 
   return (
-    <div className="space-y-3 p-4 bg-white/5 border border-white/10 rounded-2xl">
-      <div className="flex items-center justify-between">
+    <div className="space-y-3 p-3 sm:p-4 bg-white/5 border border-white/10 rounded-2xl">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
         <label className="text-xs font-semibold uppercase tracking-wider text-white/70">
           {title}
         </label>
         <span className="text-[10px] text-white/40">Select platform to search & set link</span>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+      <div className="flex flex-wrap gap-2">
         {PLATFORMS.map((platform) => {
           const isSelected = selectedPlatform === platform.id;
           return (
@@ -121,7 +126,7 @@ export default function PlatformSelector({
               key={platform.id}
               type="button"
               onClick={() => handlePlatformClick(platform)}
-              className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-bold transition-all ${
+              className={`flex-1 min-w-[100px] sm:min-w-0 flex items-center justify-center gap-1.5 px-3 py-2.5 sm:py-2 rounded-xl border text-xs font-bold transition-all ${
                 platform.bgHover
               } ${
                 isSelected
@@ -129,9 +134,9 @@ export default function PlatformSelector({
                   : `bg-white/5 ${platform.border} text-white/80 hover:text-white`
               }`}
             >
-              <span>{platform.icon}</span>
-              <span className="truncate">{platform.name}</span>
-              <ExternalLink className="w-3 h-3 opacity-60 shrink-0 ml-0.5" />
+              <span className="text-sm">{platform.icon}</span>
+              <span className="whitespace-nowrap sm:hidden">{platform.shortName || platform.name}</span>
+              <span className="whitespace-nowrap hidden sm:inline">{platform.name}</span>
             </button>
           );
         })}
