@@ -860,7 +860,7 @@ const AlbumList = ({
                             <span className="w-1 h-1 rounded-full bg-white/20" />
                             <div className="flex items-center gap-1 text-white/50 text-xs font-mono">
                               <Clock className="w-3 h-3" />
-                              <span>{album.Length}</span>
+                              <span>{formatSeconds(parseLengthToSeconds(album.Length))}</span>
                             </div>
                           </>
                         )}

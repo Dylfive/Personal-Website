@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Star, Calendar, Music, Search,
-  X, ArrowLeft, AlignLeft, Trophy, Palette, Loader2,
+  X, ArrowLeft, AlignLeft, Trophy, Palette, Loader2, Pencil,
 } from 'lucide-react';
 import { getUserAlbumsForProfile, getUserProfile } from '../lib/profileStore';
 import type { AlbumEntry } from '../types/album';
@@ -195,7 +196,7 @@ function WallTile({ album, rank, onClick }: { album: AlbumEntry; rank: number; o
 
 // ─── Album Detail Modal ───────────────────────────────────────────────────────
 function WallDetailModal({
-  album, albums, index, onClose, onPrev, onNext,
+  album, albums, index, onClose, onPrev, onNext, isOwner,
 }: {
   album: AlbumEntry;
   albums: AlbumEntry[];
@@ -203,6 +204,7 @@ function WallDetailModal({
   onClose: () => void;
   onPrev: () => void;
   onNext: () => void;
+  isOwner: boolean;
 }) {
   const hasCover = album.CoverArt && album.CoverArt !== 'Not Found';
   const secs = parseLengthToSeconds(album.Length ?? '');
@@ -261,13 +263,25 @@ function WallDetailModal({
             }}
           />
 
-          {/* Close */}
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 z-20 w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/10 flex items-center justify-center text-white/60 hover:text-white transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          {/* Close + Edit buttons */}
+          <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
+            {isOwner && (
+              <Link
+                to="/intake"
+                onClick={onClose}
+                className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/10 flex items-center justify-center text-white/60 hover:text-[color:var(--accent-primary)] hover:border-[color:var(--accent-primary)]/40 transition-colors"
+                title="Edit this album"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </Link>
+            )}
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/10 flex items-center justify-center text-white/60 hover:text-white transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
 
           {/* Cover + title row */}
           <div className="absolute bottom-0 left-0 right-0 flex items-end gap-4 px-5 pb-5 z-10">
@@ -346,6 +360,8 @@ function WallDetailModal({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function UserWallPage() {
   const { userId } = useParams<{ userId: string }>();
+  const { user } = useAuth();
+  const isOwner = !!user && user.id === userId;
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [albums, setAlbums] = useState<AlbumEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -520,6 +536,7 @@ export default function UserWallPage() {
             onClose={() => setSelectedIdx(null)}
             onPrev={() => setSelectedIdx((i) => (i !== null && i > 0 ? i - 1 : i))}
             onNext={() => setSelectedIdx((i) => (i !== null && i < sorted.length - 1 ? i + 1 : i))}
+            isOwner={isOwner}
           />
         )}
       </AnimatePresence>
