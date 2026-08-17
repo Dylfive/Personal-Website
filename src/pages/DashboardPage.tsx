@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, type Variants } from 'framer-motion';
 import {
   Library, LayoutGrid, Plus, Users,
   Palette, User, Pencil, Check, X,
@@ -13,7 +13,7 @@ import { getUserAlbums } from '../lib/albumStore';
 import { validateNickname } from '../lib/profileStore';
 
 // ─── Staggered card animation helper ─────────────────────────────────────────
-const cardVariants = {
+const cardVariants: Variants = {
   hidden: { opacity: 0, y: 18 },
   visible: (i: number) => ({
     opacity: 1,
