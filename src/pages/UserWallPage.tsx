@@ -268,7 +268,7 @@ function WallDetailModal({
           <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
             {isOwner && (
               <button
-                onClick={() => { onClose(); navigate('/intake', { state: { editAlbum: album } }); }}
+                onClick={() => { onClose(); navigate('/add', { state: { editAlbum: album } }); }}
                 className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/10 flex items-center justify-center text-white/60 hover:text-[color:var(--accent-primary)] hover:border-[color:var(--accent-primary)]/40 transition-colors"
                 title="Edit this album"
               >

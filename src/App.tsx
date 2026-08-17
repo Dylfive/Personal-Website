@@ -5,6 +5,8 @@ import AuthGuard from './components/AuthGuard';
 import NicknameModal from './components/NicknameModal';
 import Navbar from './components/Navbar';
 import IntakePage from './pages/IntakePage';
+import AddAlbumPage from './pages/AddAlbumPage';
+import DashboardPage from './pages/DashboardPage';
 import Login from './pages/Login';
 import LeaderboardPage from './pages/LeaderboardPage';
 import OwnerWallPage from './pages/OwnerWallPage';
@@ -18,7 +20,7 @@ import { useAuth } from './contexts/AuthContext';
  * Renders the NicknameModal overlay when the user is logged in but has no nickname yet.
  */
 function AppShell() {
-  const { user, nickname, nicknameLoading } = useAuth();
+  const { user, nickname, nicknameLoading, loading } = useAuth();
 
   // Show nickname modal once auth + nickname state is resolved,
   // user is logged in, and they have no nickname yet.
@@ -31,8 +33,12 @@ function AppShell() {
       {showNicknameModal && <NicknameModal />}
 
       <Routes>
-        {/* Root redirect */}
-        <Route path="/" element={<Navigate to="/login" replace />} />
+        {/* Root redirect — logged-in users go to /dashboard, others to /login */}
+        {/* Root redirect — wait for auth to resolve before deciding destination */}
+        <Route
+          path="/"
+          element={loading ? null : <Navigate to={user ? '/dashboard' : '/login'} replace />}
+        />
 
         {/* Public routes */}
         <Route path="/login" element={<Login />} />
@@ -67,11 +73,31 @@ function AppShell() {
 
         {/* Protected routes — require Supabase auth */}
         <Route
+          path="/dashboard"
+          element={
+            <AuthGuard>
+              <main className="pt-20">
+                <DashboardPage />
+              </main>
+            </AuthGuard>
+          }
+        />
+        <Route
           path="/intake"
           element={
             <AuthGuard>
               <main className="pt-20">
                 <IntakePage />
+              </main>
+            </AuthGuard>
+          }
+        />
+        <Route
+          path="/add"
+          element={
+            <AuthGuard>
+              <main className="pt-20">
+                <AddAlbumPage />
               </main>
             </AuthGuard>
           }

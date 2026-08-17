@@ -103,10 +103,10 @@ export default function Login() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
 
-  // Already authenticated → go straight to collection
+  // Already authenticated → go straight to dashboard
   useEffect(() => {
     if (!loading && user) {
-      navigate('/intake', { replace: true });
+      navigate('/dashboard', { replace: true });
     }
   }, [user, loading, navigate]);
 

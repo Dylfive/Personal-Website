@@ -53,7 +53,7 @@ const Navbar = () => {
     ? nickname[0].toUpperCase()
     : user?.email?.[0]?.toUpperCase() ?? '?';
   const displayName = nickname ?? user?.email?.split('@')[0] ?? '';
-  const isLoginPage = location.pathname === '/login' || location.pathname === '/';
+  const isLoginPage = location.pathname === '/login';
   const isMyWall = !!user?.id && location.pathname === `/wall/${user.id}`;
   const dylanWallPath = dylanId ? `/wall/${dylanId}` : '/wall';
   const isDylanWall = dylanId !== null && location.pathname === `/wall/${dylanId}`;
@@ -69,7 +69,7 @@ const Navbar = () => {
       <div className="container mx-auto px-6 flex justify-between items-center">
         {/* ── Logo ── */}
         <Link
-          to={user ? '/intake' : '/login'}
+          to={user ? '/dashboard' : '/login'}
           className="flex items-center gap-2.5 group"
         >
           <div className="w-9 h-9 rounded-xl flex items-center justify-center border border-white/20 bg-white/5 group-hover:bg-white/10 transition-all duration-300">
