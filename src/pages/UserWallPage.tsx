@@ -10,6 +10,7 @@ import { getUserAlbumsForProfile, getUserProfile } from '../lib/profileStore';
 import type { AlbumEntry } from '../types/album';
 import type { UserProfile } from '../lib/profileStore';
 import ViewingPlatformButtons from '../components/ViewingPlatformButtons';
+import RecommendationsPanel from '../components/RecommendationsPanel';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function generateGradient(seed: string): string {
@@ -330,6 +331,8 @@ function WallDetailModal({
             artistName={album.Artist}
             appleMusicLink={album.AppleMusicLink}
           />
+
+          <RecommendationsPanel album={album} allAlbums={albums} />
 
           <div className="h-px bg-white/[0.06] mb-6" />
 

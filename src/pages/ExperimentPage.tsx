@@ -2,15 +2,14 @@ import { useState, useEffect, useMemo, useRef, useCallback, useDeferredValue } f
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, X, Star, Calendar, Clock, Music,
-  Disc3, Sparkles, Loader2, ChevronLeft, ChevronRight,
-  FlaskConical, Palette, AlignLeft, RefreshCw,
+  Disc3, Loader2, ChevronLeft, ChevronRight,
+  FlaskConical, Palette, AlignLeft,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserAlbums } from '../lib/albumStore';
-import { getAlbumRecommendations } from '../lib/aiEnrichment';
 import type { AlbumEntry } from '../types/album';
-import type { AlbumRecommendation } from '../lib/aiEnrichment';
 import ViewingPlatformButtons from '../components/ViewingPlatformButtons';
+import RecommendationsPanel from '../components/RecommendationsPanel';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -195,122 +194,6 @@ function AlbumTile({
         )}
       </AnimatePresence>
     </motion.div>
-  );
-}
-
-// ─── AI Recommendations Panel ─────────────────────────────────────────────────
-function RecommendationsPanel({ album, allAlbums }: { album: AlbumEntry; allAlbums: AlbumEntry[] }) {
-  const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
-  const [recs, setRecs] = useState<AlbumRecommendation[]>([]);
-  const [errorMsg, setErrorMsg] = useState('');
-
-  // Reset when album changes
-  useEffect(() => {
-    setState('idle');
-    setRecs([]);
-    setErrorMsg('');
-  }, [album]);
-
-  const generate = async () => {
-    setState('loading');
-    setErrorMsg('');
-    try {
-      const results = await getAlbumRecommendations(album, allAlbums);
-      setRecs(results);
-      setState('done');
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg === 'NO_API_KEY') {
-        setErrorMsg('No Gemini API key found. Add your key via Admin Settings in the intake page.');
-      } else {
-        setErrorMsg('Failed to get recommendations. Check your API key and try again.');
-      }
-      setState('error');
-    }
-  };
-
-  return (
-    <div className="mt-6">
-      <div className="flex items-center gap-2 mb-3">
-        <Sparkles className="w-4 h-4 text-accent-amber" />
-        <h4 className="text-sm font-bold uppercase tracking-[0.15em] text-white/80">AI Recommendations</h4>
-      </div>
-
-      {state === 'idle' && (
-        <div
-          className="rounded-2xl border border-dashed border-accent-amber/20 bg-accent-amber/[0.03] p-5 text-center"
-        >
-          <Sparkles className="w-6 h-6 text-accent-amber/50 mx-auto mb-2" />
-          <p className="text-white/45 text-sm mb-4 leading-relaxed">
-            Find albums similar to{' '}
-            <span className="text-white/80 font-semibold">{String(album.Album)}</span>{' '}
-            using AI.
-          </p>
-          <button
-            id="generate-recommendations-btn"
-            onClick={generate}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm transition-all duration-200 hover:scale-105 active:scale-95"
-            style={{ background: 'linear-gradient(90deg, var(--accent-primary), var(--accent-secondary))', color: '#fff', boxShadow: '0 0 20px var(--accent-glow)' }}
-          >
-            <Sparkles className="w-4 h-4" />
-            Generate Recommendations
-          </button>
-        </div>
-      )}
-
-      {state === 'loading' && (
-        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6 flex flex-col items-center gap-3">
-          <Loader2 className="w-6 h-6 text-accent-amber animate-spin" />
-          <p className="text-white/40 text-sm">Asking Gemini…</p>
-        </div>
-      )}
-
-      {state === 'error' && (
-        <div className="rounded-2xl border border-red-500/20 bg-red-500/[0.04] p-5">
-          <p className="text-red-400 text-sm mb-3 leading-relaxed">{errorMsg}</p>
-          <button
-            onClick={() => setState('idle')}
-            className="flex items-center gap-1.5 text-white/40 hover:text-white text-xs transition-colors"
-          >
-            <RefreshCw className="w-3.5 h-3.5" /> Try again
-          </button>
-        </div>
-      )}
-
-      {state === 'done' && recs.length > 0 && (
-        <div className="space-y-2">
-          {recs.map((rec, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, x: -14 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: i * 0.07, duration: 0.25 }}
-              className="rounded-xl border border-white/10 bg-white/[0.03] p-3.5 hover:border-accent-amber/25 hover:bg-white/[0.05] transition-all group"
-            >
-              <div className="flex items-start gap-3">
-                <span
-                  className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black mt-0.5"
-                  style={{ background: 'color-mix(in srgb, var(--accent-primary) 12%, transparent)', color: 'var(--accent-primary)', border: '1px solid color-mix(in srgb, var(--accent-primary) 25%, transparent)' }}
-                >
-                  {i + 1}
-                </span>
-                <div className="min-w-0">
-                  <p className="text-white text-sm font-bold truncate">{rec.title}</p>
-                  <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--accent-primary)' }}>{rec.artist}</p>
-                  <p className="text-white/40 text-xs mt-1.5 leading-relaxed">{rec.reason}</p>
-                </div>
-              </div>
-            </motion.div>
-          ))}
-          <button
-            onClick={generate}
-            className="w-full mt-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border border-white/10 text-white/35 hover:text-white hover:border-white/20 hover:bg-white/[0.03] text-xs transition-all"
-          >
-            <RefreshCw className="w-3 h-3" /> Regenerate
-          </button>
-        </div>
-      )}
-    </div>
   );
 }
 

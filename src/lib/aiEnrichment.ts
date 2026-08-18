@@ -7,7 +7,7 @@ export interface AlbumRecommendation {
   reason: string;
 }
 
-/** Calls Gemini to get 5 album recommendations similar to the provided album. */
+/** Calls Gemini to get 3 album recommendations similar to the provided album. */
 export async function getAlbumRecommendations(
   album: AlbumEntry,
   userCollection: AlbumEntry[] = []
@@ -34,7 +34,7 @@ User Rating: ${album.Rating}/10
 
 ${collectionTitles ? `Albums already in user's collection (do NOT recommend these): ${collectionTitles}` : ''}
 
-Recommend exactly 5 albums that fans of this album would enjoy. For each recommendation provide:
+Recommend exactly 3 albums that fans of this album would enjoy. For each recommendation provide:
 - A real, specific album title
 - The correct artist name
 - A concise 1-sentence reason why it fits
@@ -42,7 +42,7 @@ Recommend exactly 5 albums that fans of this album would enjoy. For each recomme
 Return ONLY a valid JSON array in this exact format, no markdown, no extra text:
 [{"title":"Album Name","artist":"Artist Name","reason":"One sentence reason."},...]`;
 
-  const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+  const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
   const res = await fetch(geminiUrl, {
     method: 'POST',
@@ -148,7 +148,9 @@ export async function enrichAlbumData(
 
   // 3. Fetch Gemini Data for Genres
   let genres = primaryGenre;
-  const apiKey = localStorage.getItem('GEMINI_API_KEY');
+  const apiKey =
+    (import.meta.env.VITE_GEMINI_API_KEY as string | undefined) ||
+    localStorage.getItem('GEMINI_API_KEY');
 
   if (apiKey) {
     const prompt = `You are a music metadata expert. I need genres for the album "${albumName}" by "${artistName}".
@@ -156,7 +158,7 @@ Return ONLY a string of 1 to 3 main genres separated by commas (e.g. "Progressiv
 Genres:`;
 
     try {
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
       const res = await fetch(geminiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -180,7 +182,7 @@ Genres:`;
       console.error('Failed to fetch from Gemini', err);
     }
   } else {
-    console.warn('GEMINI_API_KEY missing from Admin Settings, using iTunes primary genre fallback.');
+    console.warn('GEMINI_API_KEY missing from settings/env, using iTunes primary genre fallback.');
   }
 
   // 4. Validate & Fallback check for Track Count and Total Length (MusicBrainz & Gemini)
