@@ -7,6 +7,14 @@ export interface AlbumRecommendation {
   reason: string;
 }
 
+export const GEMINI_CANDIDATE_MODELS = [
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-1.5-flash-latest',
+  'gemini-1.5-flash',
+  'gemini-2.0-flash',
+];
+
 export function getEffectiveGeminiApiKey(customKey?: string): string | undefined {
   if (customKey && customKey.trim()) return customKey.trim();
   const localKey = localStorage.getItem('GEMINI_API_KEY')?.trim();
@@ -50,33 +58,57 @@ Recommend exactly 3 albums that fans of this album would enjoy. For each recomme
 Return ONLY a valid JSON array in this exact format, no markdown, no extra text:
 [{"title":"Album Name","artist":"Artist Name","reason":"One sentence reason."},...]`;
 
-  const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  let lastErrorMsg = '';
 
-  const res = await fetch(geminiUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
-    }),
-  });
+  for (const model of GEMINI_CANDIDATE_MODELS) {
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => null);
-    const errorMsg = errorData?.error?.message || res.statusText || `HTTP ${res.status}`;
-    throw new Error(errorMsg);
+    try {
+      const res = await fetch(geminiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const text: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+
+        // Strip potential markdown code fences
+        const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        const jsonStart = cleaned.indexOf('[');
+        const jsonEnd = cleaned.lastIndexOf(']');
+        if (jsonStart !== -1 && jsonEnd !== -1) {
+          return JSON.parse(cleaned.slice(jsonStart, jsonEnd + 1)) as AlbumRecommendation[];
+        }
+      } else {
+        const errorData = await res.json().catch(() => null);
+        const errorMsg = errorData?.error?.message || res.statusText || `HTTP ${res.status}`;
+        lastErrorMsg = errorMsg;
+
+        // If it's a 404 / unsupported model error, continue to try next candidate model
+        if (res.status === 404 || errorMsg.includes('not found') || errorMsg.includes('not supported')) {
+          continue;
+        }
+
+        // If it's an invalid key or quota error, throw immediately
+        throw new Error(errorMsg);
+      }
+    } catch (err) {
+      if (err instanceof Error && !err.message.includes('not found') && !err.message.includes('not supported') && !err.message.includes('NO_API_KEY')) {
+        // If it's an API key or other critical error, throw directly
+        if (err.message.includes('API key') || err.message.includes('API_KEY')) {
+          throw err;
+        }
+      }
+      lastErrorMsg = err instanceof Error ? err.message : String(err);
+    }
   }
 
-  const data = await res.json();
-  const text: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-
-  // Strip potential markdown code fences
-  const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-  const jsonStart = cleaned.indexOf('[');
-  const jsonEnd = cleaned.lastIndexOf(']');
-  if (jsonStart === -1 || jsonEnd === -1) throw new Error('No JSON array in response');
-
-  return JSON.parse(cleaned.slice(jsonStart, jsonEnd + 1)) as AlbumRecommendation[];
+  throw new Error(lastErrorMsg || 'Failed to communicate with Gemini API. Please check your key.');
 }
 
 

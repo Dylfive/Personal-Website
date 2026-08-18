@@ -191,35 +191,40 @@ Return ONLY info for the STANDARD ORIGINAL STUDIO RELEASE (no deluxe bonus track
 Return ONLY a JSON object in this exact format:
 {"trackCount": 10, "length": "00:42:15", "releaseYear": 1973}`;
 
-  try {
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-    const res = await fetch(geminiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.1 },
-      }),
-    });
+  const candidateModels = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-1.5-flash-latest', 'gemini-1.5-flash', 'gemini-2.0-flash'];
 
-    if (!res.ok) return { source: 'none' };
+  for (const model of candidateModels) {
+    try {
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const res = await fetch(geminiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.1 },
+        }),
+      });
 
-    const data = await res.json();
-    const text: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-    const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    const parsed = JSON.parse(cleaned);
+      if (!res.ok) continue;
 
-    return {
-      trackCount: typeof parsed.trackCount === 'number' && parsed.trackCount > 0 ? parsed.trackCount : undefined,
-      length: typeof parsed.length === 'string' && parsed.length.includes(':') ? parsed.length : undefined,
-      releaseYear: typeof parsed.releaseYear === 'number' ? parsed.releaseYear : undefined,
-      source: 'gemini',
-      sourceLabel: 'Gemini AI',
-    };
-  } catch (err) {
-    console.warn('Gemini fetch failed:', err);
-    return { source: 'none' };
+      const data = await res.json();
+      const text: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+      const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      const parsed = JSON.parse(cleaned);
+
+      return {
+        trackCount: typeof parsed.trackCount === 'number' && parsed.trackCount > 0 ? parsed.trackCount : undefined,
+        length: typeof parsed.length === 'string' && parsed.length.includes(':') ? parsed.length : undefined,
+        releaseYear: typeof parsed.releaseYear === 'number' ? parsed.releaseYear : undefined,
+        source: 'gemini',
+        sourceLabel: 'Gemini AI',
+      };
+    } catch {
+      continue;
+    }
   }
+
+  return { source: 'none' };
 }
 
 /**
