@@ -1,16 +1,16 @@
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, useLocation, Outlet } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 
 interface AuthGuardProps {
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }
 
 /**
  * Wraps a route to require authentication.
  * - Shows a spinner while the session is resolving.
  * - Redirects to /login (preserving intended destination) if unauthenticated.
- * - Renders children if authenticated.
+ * - Renders children or <Outlet /> if authenticated.
  */
 export default function AuthGuard({ children }: AuthGuardProps) {
   const { user, loading } = useAuth();
@@ -37,5 +37,5 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     );
   }
 
-  return <>{children}</>;
+  return <>{children ?? <Outlet />}</>;
 }

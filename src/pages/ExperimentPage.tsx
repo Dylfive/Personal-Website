@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback, useDeferredValue } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, X, Star, Calendar, Clock, Music,
@@ -581,8 +581,10 @@ export default function ExperimentPage() {
 
   const byRating = useMemo(() => [...albums].sort((a, b) => b.Rating - a.Rating), [albums]);
 
+  const deferredSearch = useDeferredValue(search);
+
   const displayAlbums: DisplayAlbum[] = useMemo(() => {
-    const q = search.toLowerCase();
+    const q = deferredSearch.toLowerCase().trim();
     let result = albums.filter((a) =>
       !q ||
       String(a.Album).toLowerCase().includes(q) ||
@@ -612,7 +614,7 @@ export default function ExperimentPage() {
       ...a,
       _globalRank: byRating.findIndex((x) => String(x.Album) === String(a.Album) && x.Artist === a.Artist) + 1,
     }));
-  }, [albums, search, sortMode, hues, albumKey, byRating]);
+  }, [albums, deferredSearch, sortMode, hues, albumKey, byRating]);
 
   const selectedAlbum = selectedIdx !== null ? displayAlbums[selectedIdx] ?? null : null;
 

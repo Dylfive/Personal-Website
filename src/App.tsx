@@ -1,19 +1,24 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
-import AuthGuard from './components/AuthGuard';
-import NicknameModal from './components/NicknameModal';
 import Navbar from './components/Navbar';
-import IntakePage from './pages/IntakePage';
-import AddAlbumPage from './pages/AddAlbumPage';
-import DashboardPage from './pages/DashboardPage';
-import Login from './pages/Login';
-import LeaderboardPage from './pages/LeaderboardPage';
-import OwnerWallPage from './pages/OwnerWallPage';
-import UserWallPage from './pages/UserWallPage';
-import ExperimentPage from './pages/ExperimentPage';
-import Resume from './pages/Resume';
-import { useAuth } from './contexts/AuthContext';
+import NicknameModal from './components/NicknameModal';
+import LoadingFallback from './components/LoadingFallback';
+import ErrorBoundary from './components/ErrorBoundary';
+import ProtectedLayout from './components/layouts/ProtectedLayout';
+import PublicLayout from './components/layouts/PublicLayout';
+
+// ── Lazy-loaded page components for route code-splitting ─────────────────────
+const Login = lazy(() => import('./pages/Login'));
+const Resume = lazy(() => import('./pages/Resume'));
+const OwnerWallPage = lazy(() => import('./pages/OwnerWallPage'));
+const UserWallPage = lazy(() => import('./pages/UserWallPage'));
+const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const IntakePage = lazy(() => import('./pages/IntakePage'));
+const AddAlbumPage = lazy(() => import('./pages/AddAlbumPage'));
+const LeaderboardPage = lazy(() => import('./pages/LeaderboardPage'));
+const ExperimentPage = lazy(() => import('./pages/ExperimentPage'));
 
 /**
  * Inner component that has access to auth context.
@@ -32,100 +37,39 @@ function AppShell() {
 
       {showNicknameModal && <NicknameModal />}
 
-      <Routes>
-        {/* Root redirect — logged-in users go to /dashboard, others to /login */}
-        {/* Root redirect — wait for auth to resolve before deciding destination */}
-        <Route
-          path="/"
-          element={loading ? null : <Navigate to={user ? '/dashboard' : '/login'} replace />}
-        />
+      <ErrorBoundary>
+        <Suspense fallback={<LoadingFallback />}>
+          <Routes>
+            {/* Root redirect — wait for auth to resolve before deciding destination */}
+            <Route
+              path="/"
+              element={loading ? null : <Navigate to={user ? '/dashboard' : '/login'} replace />}
+            />
 
-        {/* Public routes */}
-        <Route path="/login" element={<Login />} />
-        <Route
-          path="/resume"
-          element={
-            <main className="pt-20">
-              <Resume />
-            </main>
-          }
-        />
+            {/* Standalone full-height public route */}
+            <Route path="/login" element={<Login />} />
 
-        {/* Dylan's Wall — fully public, no login required */}
-        <Route
-          path="/wall"
-          element={
-            <main className="pt-20">
-              <OwnerWallPage />
-            </main>
-          }
-        />
+            {/* Standard public routes with page header offset */}
+            <Route element={<PublicLayout />}>
+              <Route path="/resume" element={<Resume />} />
+              <Route path="/wall" element={<OwnerWallPage />} />
+              <Route path="/wall/:userId" element={<UserWallPage />} />
+            </Route>
 
-        {/* Any user's public wall */}
-        <Route
-          path="/wall/:userId"
-          element={
-            <main className="pt-20">
-              <UserWallPage />
-            </main>
-          }
-        />
+            {/* Protected routes — require Supabase auth */}
+            <Route element={<ProtectedLayout />}>
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/intake" element={<IntakePage />} />
+              <Route path="/add" element={<AddAlbumPage />} />
+              <Route path="/leaderboard" element={<LeaderboardPage />} />
+              <Route path="/experiment" element={<ExperimentPage />} />
+            </Route>
 
-        {/* Protected routes — require Supabase auth */}
-        <Route
-          path="/dashboard"
-          element={
-            <AuthGuard>
-              <main className="pt-20">
-                <DashboardPage />
-              </main>
-            </AuthGuard>
-          }
-        />
-        <Route
-          path="/intake"
-          element={
-            <AuthGuard>
-              <main className="pt-20">
-                <IntakePage />
-              </main>
-            </AuthGuard>
-          }
-        />
-        <Route
-          path="/add"
-          element={
-            <AuthGuard>
-              <main className="pt-20">
-                <AddAlbumPage />
-              </main>
-            </AuthGuard>
-          }
-        />
-        <Route
-          path="/leaderboard"
-          element={
-            <AuthGuard>
-              <main className="pt-20">
-                <LeaderboardPage />
-              </main>
-            </AuthGuard>
-          }
-        />
-        <Route
-          path="/experiment"
-          element={
-            <AuthGuard>
-              <main className="pt-20">
-                <ExperimentPage />
-              </main>
-            </AuthGuard>
-          }
-        />
-
-        {/* Catch-all → login */}
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
+            {/* Catch-all → login */}
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </Routes>
+        </Suspense>
+      </ErrorBoundary>
     </div>
   );
 }
