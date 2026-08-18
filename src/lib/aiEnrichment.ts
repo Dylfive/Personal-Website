@@ -7,14 +7,22 @@ export interface AlbumRecommendation {
   reason: string;
 }
 
+export function getEffectiveGeminiApiKey(customKey?: string): string | undefined {
+  if (customKey && customKey.trim()) return customKey.trim();
+  const localKey = localStorage.getItem('GEMINI_API_KEY')?.trim();
+  if (localKey) return localKey;
+  const envKey = (import.meta.env.VITE_GEMINI_API_KEY as string | undefined)?.trim();
+  if (envKey && !envKey.startsWith('AQ.')) return envKey;
+  return undefined;
+}
+
 /** Calls Gemini to get 3 album recommendations similar to the provided album. */
 export async function getAlbumRecommendations(
   album: AlbumEntry,
-  userCollection: AlbumEntry[] = []
+  userCollection: AlbumEntry[] = [],
+  customApiKey?: string
 ): Promise<AlbumRecommendation[]> {
-  const apiKey =
-    (import.meta.env.VITE_GEMINI_API_KEY as string | undefined) ||
-    localStorage.getItem('GEMINI_API_KEY');
+  const apiKey = getEffectiveGeminiApiKey(customApiKey);
 
   if (!apiKey) {
     throw new Error('NO_API_KEY');
@@ -54,7 +62,9 @@ Return ONLY a valid JSON array in this exact format, no markdown, no extra text:
   });
 
   if (!res.ok) {
-    throw new Error(`Gemini API error: ${res.statusText}`);
+    const errorData = await res.json().catch(() => null);
+    const errorMsg = errorData?.error?.message || res.statusText || `HTTP ${res.status}`;
+    throw new Error(errorMsg);
   }
 
   const data = await res.json();

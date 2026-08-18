@@ -1,6 +1,6 @@
 // recommendationStore.ts
 // Calculates internal recommendations strictly from user-submitted albums in Supabase (user_albums).
-// Scored by Genre overlap, Release Year/Era proximity, Total Length proximity, and high user ratings.
+// Prioritizes direct genre matches, core genre family compatibility, release era, runtime, and high ratings.
 
 import type { AlbumEntry } from '../types/album';
 import { supabase } from './supabase';
@@ -9,8 +9,83 @@ export interface CommunityRecommendation {
   album: AlbumEntry;
   matchScore: number;
   reason: string;
-  contributorCount?: number;
 }
+
+// ─── Genre Family Taxonomy ───────────────────────────────────────────────────
+
+const GENRE_FAMILY_PATTERNS: Record<string, { label: string; keywords: string[] }> = {
+  'hip-hop': {
+    label: 'Hip-Hop / Rap',
+    keywords: [
+      'hip hop', 'hip-hop', 'rap', 'trap', 'boom bap', 'east coast', 'west coast',
+      'southern rap', 'underground hip hop', 'abstract hip hop', 'conscious hip hop',
+      'grime', 'drill', 'cloud rap', 'hardcore hip hop', 'gangsta rap', 'jazz rap',
+      'turntablism', 'instrumental hip hop'
+    ],
+  },
+  'rock': {
+    label: 'Rock',
+    keywords: [
+      'rock', 'indie rock', 'alternative rock', 'post-punk', 'punk', 'grunge',
+      'shoegaze', 'garage rock', 'psychedelic rock', 'art rock', 'hard rock',
+      'progressive rock', 'classic rock', 'folk rock', 'emo', 'math rock',
+      'krautrock', 'noise rock', 'post-rock', 'glam rock', 'punk rock', 'indie'
+    ],
+  },
+  'metal': {
+    label: 'Metal',
+    keywords: [
+      'metal', 'heavy metal', 'thrash metal', 'death metal', 'black metal',
+      'doom metal', 'metalcore', 'nu metal', 'post-metal', 'sludge metal',
+      'progressive metal', 'industrial metal', 'power metal', 'grindcore'
+    ],
+  },
+  'pop': {
+    label: 'Pop',
+    keywords: [
+      'pop', 'indie pop', 'synthpop', 'electropop', 'art pop', 'dance-pop',
+      'dream pop', 'chamber pop', 'k-pop', 'hyperpop', 'bedroom pop', 'j-pop',
+      'sophisti-pop', 'baroque pop', 'teen pop'
+    ],
+  },
+  'r&b-soul': {
+    label: 'R&B / Soul',
+    keywords: [
+      'r&b', 'r & b', 'soul', 'neo-soul', 'funk', 'motown', 'contemporary r&b',
+      'doo-wop', 'disco', 'quiet storm', 'p-funk'
+    ],
+  },
+  'jazz': {
+    label: 'Jazz',
+    keywords: [
+      'jazz', 'bebop', 'hard bop', 'cool jazz', 'modal jazz', 'free jazz',
+      'jazz fusion', 'fusion', 'bossa nova', 'big band', 'swing', 'vocal jazz',
+      'latin jazz', 'post-bop', 'smooth jazz', 'traditional pop'
+    ],
+  },
+  'electronic': {
+    label: 'Electronic',
+    keywords: [
+      'electronic', 'ambient', 'techno', 'house', 'idm', 'drum and bass',
+      'synthwave', 'downtempo', 'trance', 'electro', 'trip hop', 'dubstep',
+      'garage', 'drone', 'electronica', 'uk bass', 'glitch', 'vaporwave'
+    ],
+  },
+  'folk-country': {
+    label: 'Folk / Country',
+    keywords: [
+      'folk', 'singer-songwriter', 'americana', 'country', 'bluegrass',
+      'alt-country', 'acoustic', 'indie folk', 'traditional folk', 'appalachian'
+    ],
+  },
+  'classical': {
+    label: 'Classical',
+    keywords: [
+      'classical', 'orchestral', 'baroque', 'romantic', 'contemporary classical',
+      'minimalism', 'film score', 'soundtrack', 'choral', 'opera'
+    ],
+  },
+};
 
 function parseLengthToSeconds(length?: string): number {
   if (!length) return 0;
@@ -31,13 +106,40 @@ function formatSeconds(secs: number): string {
   return `${m}m`;
 }
 
+function cleanGenre(str?: string): string {
+  return (str ?? '')
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function extractGenreTokens(genreStr?: string): string[] {
   if (!genreStr) return [];
   return genreStr
     .toLowerCase()
     .split(/[,/&]+/)
-    .map((g) => g.trim())
-    .filter((g) => g.length > 0);
+    .map((g) => cleanGenre(g))
+    .filter((g) => g.length > 1);
+}
+
+function detectGenreFamilies(genreStr?: string): Set<string> {
+  const families = new Set<string>();
+  if (!genreStr) return families;
+  const cleaned = cleanGenre(genreStr);
+
+  for (const [familyKey, { keywords }] of Object.entries(GENRE_FAMILY_PATTERNS)) {
+    for (const kw of keywords) {
+      // Whole-phrase or bounded matching to avoid false positives
+      const regex = new RegExp(`\\b${kw.replace('-', '[- ]')}\\b`, 'i');
+      if (regex.test(cleaned)) {
+        families.add(familyKey);
+        break;
+      }
+    }
+  }
+
+  return families;
 }
 
 /**
@@ -95,6 +197,10 @@ export async function fetchAllUserAlbums(): Promise<AlbumEntry[]> {
 /**
  * Calculates top 3 community recommendations based on a target album
  * using strictly user albums from Supabase.
+ *
+ * CRITICAL REQUIREMENT:
+ * Direct and family genre compatibility is mandatory.
+ * Albums from unrelated genres (e.g. Pop/Jazz for a Hip-Hop album) are strictly filtered out.
  */
 export async function getCommunityRecommendations(
   targetAlbum: AlbumEntry,
@@ -118,8 +224,9 @@ export async function getCommunityRecommendations(
     excludedKeys.add(`${String(item.Album).toLowerCase().trim()}:::${item.Artist.toLowerCase().trim()}`);
   }
 
-  const targetGenres = extractGenreTokens(targetAlbum.Genre);
-  const targetPrimaryGenre = targetGenres[0] ?? '';
+  const targetTokens = extractGenreTokens(targetAlbum.Genre);
+  const targetPrimaryToken = targetTokens[0] ?? cleanGenre(targetAlbum.Genre.split(',')[0]);
+  const targetFamilies = detectGenreFamilies(targetAlbum.Genre);
   const targetYear = targetAlbum['Release Year'] || 0;
   const targetSecs = parseLengthToSeconds(targetAlbum.Length);
 
@@ -129,105 +236,119 @@ export async function getCommunityRecommendations(
     const candidateKey = `${String(candidate.Album).toLowerCase().trim()}:::${candidate.Artist.toLowerCase().trim()}`;
     if (excludedKeys.has(candidateKey)) continue;
 
-    let score = 0;
-    const matchReasons: string[] = [];
+    const isSameArtist = targetAlbum.Artist.toLowerCase().trim() === candidate.Artist.toLowerCase().trim();
+    const candidateTokens = extractGenreTokens(candidate.Genre);
+    const candidatePrimaryToken = candidateTokens[0] ?? cleanGenre(candidate.Genre.split(',')[0]);
+    const candidateFamilies = detectGenreFamilies(candidate.Genre);
 
-    // 1. Genre Overlap (Weight: ~45%)
-    const candidateGenres = extractGenreTokens(candidate.Genre);
-    const candidatePrimaryGenre = candidateGenres[0] ?? '';
+    let genreScore = 0;
+    let matchType: 'direct_exact' | 'token_match' | 'family_match' | 'none' = 'none';
+    let primaryMatchLabel = '';
 
-    let genreOverlapCount = 0;
-    if (targetPrimaryGenre && candidatePrimaryGenre && targetPrimaryGenre === candidatePrimaryGenre) {
-      score += 45;
-      genreOverlapCount++;
-      matchReasons.push(`Shares primary genre (${candidate.Genre.split(',')[0].trim()})`);
+    // 1. Direct Primary Genre Exact Match (e.g. "Hip-Hop" == "Hip-Hop" or "Art Pop" == "Art Pop")
+    if (targetPrimaryToken && candidatePrimaryToken && targetPrimaryToken === candidatePrimaryToken) {
+      genreScore += 1000;
+      matchType = 'direct_exact';
+      primaryMatchLabel = candidate.Genre.split(',')[0].trim();
     } else {
-      for (const tg of targetGenres) {
-        if (candidateGenres.includes(tg)) {
-          score += 25;
-          genreOverlapCount++;
-          if (matchReasons.length === 0) {
-            matchReasons.push(`Shares genre: ${tg.charAt(0).toUpperCase() + tg.slice(1)}`);
-          }
-        } else {
-          // Partial keyword match (e.g. "rock", "folk", "jazz", "metal", "electronic")
-          const hasKeywordMatch = candidateGenres.some((cg) => cg.includes(tg) || tg.includes(cg));
-          if (hasKeywordMatch) {
-            score += 12;
-            genreOverlapCount++;
-          }
+      // Check for exact token overlaps
+      const sharedTokens = targetTokens.filter((tt) => candidateTokens.includes(tt));
+      if (sharedTokens.length > 0) {
+        genreScore += 700 + (sharedTokens.length - 1) * 100;
+        matchType = 'token_match';
+        primaryMatchLabel = sharedTokens[0].charAt(0).toUpperCase() + sharedTokens[0].slice(1);
+      } else {
+        // Check for shared genre families
+        const sharedFamilies = Array.from(targetFamilies).filter((f) => candidateFamilies.has(f));
+        if (sharedFamilies.length > 0) {
+          genreScore += 500;
+          matchType = 'family_match';
+          primaryMatchLabel = GENRE_FAMILY_PATTERNS[sharedFamilies[0]]?.label || candidate.Genre.split(',')[0].trim();
         }
       }
     }
 
-    // If there is zero genre relation and different artist, skip candidate unless rating is exceptional
-    const isSameArtist = targetAlbum.Artist.toLowerCase().trim() === candidate.Artist.toLowerCase().trim();
-    if (isSameArtist) {
-      score += 35;
-      matchReasons.unshift(`Another top-rated album by ${candidate.Artist}`);
-    }
-
-    if (genreOverlapCount === 0 && !isSameArtist) {
+    // STRICT FILTER: If candidate shares NO genre family, NO token match, and is NOT the same artist,
+    // REJECT candidate immediately. Never recommend Laufey (Pop/Jazz) for MF DOOM (Hip-Hop).
+    if (genreScore === 0 && !isSameArtist) {
       continue;
     }
 
-    // 2. High User Rating (Weight: ~30%)
-    const rating = candidate.Rating;
-    score += rating * 3.5; // e.g. 9.0 = 31.5 pts
-    if (rating >= 9.0) {
-      score += 15;
-    } else if (rating >= 8.0) {
-      score += 8;
+    // Artist affinity
+    if (isSameArtist) {
+      genreScore += 600;
     }
 
-    // 3. Era / Release Year Proximity (Weight: ~15%)
+    // 2. High User Rating (Weight: ~20% of total score)
+    const ratingScore = candidate.Rating * 20; // 9.5 rating = 190 points
+
+    // 3. Era / Release Year Proximity
+    let eraScore = 0;
     const candidateYear = candidate['Release Year'] || 0;
+    let eraReason = '';
     if (targetYear > 0 && candidateYear > 0) {
       const yearDiff = Math.abs(targetYear - candidateYear);
       if (yearDiff === 0) {
-        score += 20;
-        matchReasons.push(`Released the exact same year (${candidateYear})`);
+        eraScore = 40;
+        eraReason = `same year (${candidateYear})`;
       } else if (yearDiff <= 3) {
-        score += 15;
-        matchReasons.push(`Released in the same era (${candidateYear})`);
+        eraScore = 30;
+        eraReason = `${candidateYear}`;
       } else if (yearDiff <= 8) {
-        score += 10;
+        eraScore = 18;
       } else if (yearDiff <= 15) {
-        score += 5;
+        eraScore = 8;
       }
     }
 
-    // 4. Runtime / Album Length Proximity (Weight: ~10%)
+    // 4. Runtime Proximity
+    let lengthScore = 0;
     const candidateSecs = parseLengthToSeconds(candidate.Length);
+    let lengthReason = '';
     if (targetSecs > 0 && candidateSecs > 0) {
       const secDiff = Math.abs(targetSecs - candidateSecs);
-      if (secDiff <= 300) { // Within 5 minutes
-        score += 12;
-        if (matchReasons.length < 2) {
-          matchReasons.push(`Matching album runtime (~${formatSeconds(candidateSecs)})`);
-        }
-      } else if (secDiff <= 600) { // Within 10 minutes
-        score += 6;
+      if (secDiff <= 300) { // within 5 mins
+        lengthScore = 25;
+        lengthReason = `~${formatSeconds(candidateSecs)}`;
+      } else if (secDiff <= 600) {
+        lengthScore = 12;
       }
     }
 
-    // 5. Must have valid cover art preference
-    if (candidate.CoverArt && candidate.CoverArt !== 'Not Found') {
-      score += 5;
+    // Must have valid cover art bonus
+    const coverBonus = (candidate.CoverArt && candidate.CoverArt !== 'Not Found') ? 20 : 0;
+
+    const totalScore = genreScore + ratingScore + eraScore + lengthScore + coverBonus;
+
+    // Construct human-readable reason
+    let reason = '';
+    if (isSameArtist) {
+      reason = `Another standout album by ${candidate.Artist} (${candidate.Rating.toFixed(1)}/10)`;
+    } else if (matchType === 'direct_exact') {
+      reason = `Direct ${primaryMatchLabel} match · Rated ${candidate.Rating.toFixed(1)}/10 by community`;
+    } else if (matchType === 'token_match') {
+      reason = `Top-rated ${primaryMatchLabel} recommendation (${candidate.Rating.toFixed(1)}/10)`;
+    } else if (matchType === 'family_match') {
+      reason = `Matching ${primaryMatchLabel} style (${candidate.Rating.toFixed(1)}/10)`;
+    } else {
+      reason = `Community favorite (${candidate.Rating.toFixed(1)}/10)`;
     }
 
-    const finalReason = matchReasons.length > 0
-      ? matchReasons.slice(0, 2).join(' · ')
-      : `Top-rated community pick (${candidate.Rating.toFixed(1)}/10) in ${candidate.Genre.split(',')[0] || 'Music'}`;
+    if (eraReason && reason.length < 50) {
+      reason += ` · ${eraReason}`;
+    }
+    if (lengthReason && reason.length < 65) {
+      reason += ` · ${lengthReason}`;
+    }
 
     scoredCandidates.push({
       album: candidate,
-      matchScore: Math.round(score),
-      reason: finalReason,
+      matchScore: totalScore,
+      reason,
     });
   }
 
-  // Sort by match score descending, then rating descending
+  // Sort strictly by total score descending (direct genre matches heavily dominate)
   scoredCandidates.sort((a, b) => {
     if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;
     return b.album.Rating - a.album.Rating;

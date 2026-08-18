@@ -46,7 +46,13 @@ export default function RecommendationsPanel({ album, allAlbums = [] }: Recommen
     localStorage.getItem('GEMINI_API_KEY')
   );
 
-  // Reset when selected album changes
+  // Load existing key into input on mount
+  useEffect(() => {
+    const stored = localStorage.getItem('GEMINI_API_KEY');
+    if (stored) setApiKeyInput(stored);
+  }, []);
+
+  // Reset state when selected album changes
   useEffect(() => {
     setAiState('idle');
     setAiRecs([]);
@@ -81,16 +87,21 @@ export default function RecommendationsPanel({ album, allAlbums = [] }: Recommen
   }, [album, allAlbums, activeTab]);
 
   const generateAiRecs = async (overrideKey?: string) => {
-    if (overrideKey) {
-      localStorage.setItem('GEMINI_API_KEY', overrideKey.trim());
+    const rawKey = overrideKey !== undefined ? overrideKey : apiKeyInput;
+    if (overrideKey !== undefined) {
+      if (rawKey.trim()) {
+        localStorage.setItem('GEMINI_API_KEY', rawKey.trim());
+      } else {
+        localStorage.removeItem('GEMINI_API_KEY');
+      }
       setShowKeyInput(false);
       setKeySavedToast(true);
       setTimeout(() => setKeySavedToast(false), 3000);
     }
 
-    const key = overrideKey?.trim() ||
-      (import.meta.env.VITE_GEMINI_API_KEY as string | undefined) ||
-      localStorage.getItem('GEMINI_API_KEY');
+    const key = rawKey?.trim() ||
+      localStorage.getItem('GEMINI_API_KEY')?.trim() ||
+      (import.meta.env.VITE_GEMINI_API_KEY as string | undefined)?.trim();
 
     if (!key) {
       setShowKeyInput(true);
@@ -101,7 +112,7 @@ export default function RecommendationsPanel({ album, allAlbums = [] }: Recommen
     setAiErrorMsg('');
 
     try {
-      const results = await getAlbumRecommendations(album, allAlbums);
+      const results = await getAlbumRecommendations(album, allAlbums, key);
       setAiRecs(results);
       setAiState('done');
     } catch (err: unknown) {
@@ -110,7 +121,7 @@ export default function RecommendationsPanel({ album, allAlbums = [] }: Recommen
         setShowKeyInput(true);
         setAiState('idle');
       } else {
-        setAiErrorMsg('Failed to get recommendations. Check your API key and network connection.');
+        setAiErrorMsg(msg || 'Failed to get recommendations. Check your API key and network connection.');
         setAiState('error');
       }
     }
@@ -314,15 +325,30 @@ export default function RecommendationsPanel({ album, allAlbums = [] }: Recommen
                 >
                   Get free Gemini API Key ↗
                 </a>
-                {hasGeminiKey && (
-                  <button
-                    type="button"
-                    onClick={() => setShowKeyInput(false)}
-                    className="text-white/40 hover:text-white"
-                  >
-                    Cancel
-                  </button>
-                )}
+                <div className="flex items-center gap-3">
+                  {Boolean(localStorage.getItem('GEMINI_API_KEY')) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        localStorage.removeItem('GEMINI_API_KEY');
+                        setApiKeyInput('');
+                        setShowKeyInput(false);
+                      }}
+                      className="text-red-400/70 hover:text-red-300 transition-colors"
+                    >
+                      Clear Saved Key
+                    </button>
+                  )}
+                  {hasGeminiKey && (
+                    <button
+                      type="button"
+                      onClick={() => setShowKeyInput(false)}
+                      className="text-white/40 hover:text-white"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
               </div>
             </motion.div>
           )}
