@@ -64,39 +64,58 @@ Return ONLY a valid JSON array in this exact format, no markdown, no extra text:
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     try {
-      const res = await fetch(geminiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
-        }),
-      });
+        // Attempt up to 3 retries with exponential backoff on overload (429)
+        let attempt = 0;
+        const maxAttempts = 3;
+        while (attempt < maxAttempts) {
+          try {
+            const res = await fetch(geminiUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
+              }),
+            });
 
-      if (res.ok) {
-        const data = await res.json();
-        const text: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-
-        // Strip potential markdown code fences
-        const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-        const jsonStart = cleaned.indexOf('[');
-        const jsonEnd = cleaned.lastIndexOf(']');
-        if (jsonStart !== -1 && jsonEnd !== -1) {
-          return JSON.parse(cleaned.slice(jsonStart, jsonEnd + 1)) as AlbumRecommendation[];
+            if (res.ok) {
+              const data = await res.json();
+              const text: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+              const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+              const jsonStart = cleaned.indexOf('[');
+              const jsonEnd = cleaned.lastIndexOf(']');
+              if (jsonStart !== -1 && jsonEnd !== -1) {
+                return JSON.parse(cleaned.slice(jsonStart, jsonEnd + 1)) as AlbumRecommendation[];
+              }
+            } else {
+              const errorData = await res.json().catch(() => null);
+              const errorMsg = errorData?.error?.message || res.statusText || `HTTP ${res.status}`;
+              // If overloaded, retry after backoff
+              if (res.status === 429) {
+                const delay = Math.pow(2, attempt) * 1000;
+                await new Promise(r => setTimeout(r, delay));
+                attempt++;
+                continue;
+              }
+              // If model not found, break to next model
+              if (res.status === 404 || errorMsg.includes('not found') || errorMsg.includes('not supported')) {
+                break;
+              }
+              // Other errors propagate
+              throw new Error(errorMsg);
+            }
+            // If we reach here without returning, break to next model
+            break;
+          } catch (err) {
+            const errMsg = err instanceof Error ? err.message : String(err);
+            // If critical API key issue, rethrow
+            if (errMsg.includes('API key') || errMsg.includes('API_KEY')) {
+              throw err;
+            }
+            // Otherwise treat as failure and break to next model
+            break;
+          }
         }
-      } else {
-        const errorData = await res.json().catch(() => null);
-        const errorMsg = errorData?.error?.message || res.statusText || `HTTP ${res.status}`;
-        lastErrorMsg = errorMsg;
-
-        // If it's a 404 / unsupported model error, continue to try next candidate model
-        if (res.status === 404 || errorMsg.includes('not found') || errorMsg.includes('not supported')) {
-          continue;
-        }
-
-        // If it's an invalid key or quota error, throw immediately
-        throw new Error(errorMsg);
-      }
     } catch (err) {
       if (err instanceof Error && !err.message.includes('not found') && !err.message.includes('not supported') && !err.message.includes('NO_API_KEY')) {
         // If it's an API key or other critical error, throw directly

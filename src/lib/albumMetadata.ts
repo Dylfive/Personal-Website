@@ -191,39 +191,64 @@ Return ONLY info for the STANDARD ORIGINAL STUDIO RELEASE (no deluxe bonus track
 Return ONLY a JSON object in this exact format:
 {"trackCount": 10, "length": "00:42:15", "releaseYear": 1973}`;
 
-  const candidateModels = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-1.5-flash-latest', 'gemini-1.5-flash', 'gemini-2.0-flash'];
+  const GEMINI_CANDIDATE_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-1.5-flash-latest', 'gemini-1.5-flash', 'gemini-2.0-flash'];
+  let lastErrorMsg = '';
 
-  for (const model of candidateModels) {
-    try {
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-      const res = await fetch(geminiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.1 },
-        }),
-      });
-
-      if (!res.ok) continue;
-
-      const data = await res.json();
-      const text: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-      const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      const parsed = JSON.parse(cleaned);
-
-      return {
-        trackCount: typeof parsed.trackCount === 'number' && parsed.trackCount > 0 ? parsed.trackCount : undefined,
-        length: typeof parsed.length === 'string' && parsed.length.includes(':') ? parsed.length : undefined,
-        releaseYear: typeof parsed.releaseYear === 'number' ? parsed.releaseYear : undefined,
-        source: 'gemini',
-        sourceLabel: 'Gemini AI',
-      };
-    } catch {
-      continue;
+  for (const model of GEMINI_CANDIDATE_MODELS) {
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    let attempt = 0;
+    const maxAttempts = 3;
+    while (attempt < maxAttempts) {
+      try {
+        const res = await fetch(geminiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.1 },
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const text: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+          const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+          const parsed = JSON.parse(cleaned);
+          return {
+            trackCount: typeof parsed.trackCount === 'number' && parsed.trackCount > 0 ? parsed.trackCount : undefined,
+            length: typeof parsed.length === 'string' && parsed.length.includes(':') ? parsed.length : undefined,
+            releaseYear: typeof parsed.releaseYear === 'number' ? parsed.releaseYear : undefined,
+            source: 'gemini',
+            sourceLabel: 'Gemini AI',
+          };
+        } else {
+          const errorData = await res.json().catch(() => null);
+          const errorMsg = errorData?.error?.message || res.statusText || `HTTP ${res.status}`;
+          lastErrorMsg = errorMsg;
+          // If overload (429), retry after delay
+          if (res.status === 429) {
+            const delay = Math.pow(2, attempt) * 1000; // exponential backoff
+            await new Promise(r => setTimeout(r, delay));
+            attempt++;
+            continue;
+          }
+          // If 404 or unsupported model, break to try next model
+          if (res.status === 404 || errorMsg.includes('not found') || errorMsg.includes('not supported')) {
+            break;
+          }
+          // Other errors abort
+          throw new Error(errorMsg);
+        }
+      } catch (err) {
+        lastErrorMsg = err instanceof Error ? err.message : String(err);
+        // If API key error, abort immediately
+        if (lastErrorMsg.includes('API key') || lastErrorMsg.includes('API_KEY')) {
+          throw err;
+        }
+        // For other errors, break and try next model
+        break;
+      }
     }
   }
-
   return { source: 'none' };
 }
 
