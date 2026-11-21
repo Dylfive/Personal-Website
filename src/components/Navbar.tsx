@@ -69,7 +69,7 @@ const Navbar = () => {
       <div className="container mx-auto px-6 flex justify-between items-center">
         {/* ── Logo ── */}
         <Link
-          to={user ? '/dashboard' : '/login'}
+          to={user ? '/dashboard' : '/'}
           className="flex items-center gap-2.5 group"
         >
           <div className="w-9 h-9 rounded-xl flex items-center justify-center border border-white/20 bg-white/5 group-hover:bg-white/10 transition-all duration-300">
@@ -177,8 +177,7 @@ const Navbar = () => {
                 </button>
               </Link>
             )
-          )}
-        </div>
+          )}        </div>
 
         {/* ── Mobile Toggle ── */}
         <button

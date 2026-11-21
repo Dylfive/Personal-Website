@@ -99,11 +99,29 @@ function computeStats(albums: Album[]) {
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
-const StatCard = ({ icon, label, value, sub }: { icon: React.ReactNode; label: string; value: string; sub?: string }) => (
-  <div className="glass-panel rounded-2xl p-4 border border-white/10 flex gap-3 items-start hover:border-[color:var(--accent-primary)]/40 transition-all duration-300 group">
+const StatCard = ({
+  icon, label, value, sub, onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  sub?: string;
+  onClick?: () => void;
+}) => (
+  <div
+    onClick={onClick}
+    className={`glass-panel rounded-2xl p-4 border border-white/10 flex gap-3 items-start transition-all duration-300 group
+      ${onClick ? 'cursor-pointer hover:border-[color:var(--accent-primary)]/60 hover:bg-white/[0.06] hover:-translate-y-px hover:shadow-lg active:scale-[0.98]' : 'hover:border-[color:var(--accent-primary)]/40'}`}
+    title={onClick ? 'Click to search' : undefined}
+  >
     <div className="text-[color:var(--accent-primary)] mt-0.5 group-hover:scale-110 transition-transform flex-shrink-0">{icon}</div>
-    <div className="min-w-0">
-      <p className="text-[10px] uppercase tracking-widest text-white/40 font-bold mb-0.5">{label}</p>
+    <div className="min-w-0 flex-1">
+      <div className="flex items-center gap-1.5 mb-0.5">
+        <p className="text-[10px] uppercase tracking-widest text-white/40 font-bold">{label}</p>
+        {onClick && (
+          <Search className="w-2.5 h-2.5 text-white/20 group-hover:text-[color:var(--accent-primary)]/60 transition-colors shrink-0" />
+        )}
+      </div>
       <p className="text-sm font-bold text-white truncate">{value}</p>
       {sub && <p className="text-xs text-white/50 truncate">{sub}</p>}
     </div>
@@ -1146,6 +1164,7 @@ const MusicDashboard: React.FC<MusicDashboardProps> = ({ onAddAlbumClick, onEdit
               <div className="flex items-center gap-2 mb-4">
                 <Star className="w-4 h-4 text-[color:var(--accent-primary)]" />
                 <h4 className="text-sm font-bold uppercase tracking-[0.2em] text-white/70">Interesting Stats</h4>
+                <span className="ml-auto text-[9px] text-white/20 uppercase tracking-widest">click to search</span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-2">
                 <StatCard
@@ -1153,12 +1172,14 @@ const MusicDashboard: React.FC<MusicDashboardProps> = ({ onAddAlbumClick, onEdit
                   label="Highest Rated"
                   value={String(stats.highestRated.Album)}
                   sub={`${stats.highestRated.Artist} · ${stats.highestRated.Rating}/10`}
+                  onClick={() => { setSearchQuery(String(stats.highestRated.Album)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                 />
                 <StatCard
                   icon={<Star className="w-4 h-4" />}
                   label="Avg Rating"
                   value={`${stats.avgRating} / 10`}
                   sub={`across ${albums.length} albums`}
+                  onClick={() => { setSearchQuery(String(stats.avgRating)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                 />
                 {stats.oldest && (
                   <StatCard
@@ -1166,6 +1187,7 @@ const MusicDashboard: React.FC<MusicDashboardProps> = ({ onAddAlbumClick, onEdit
                     label="Oldest Album"
                     value={String(stats.oldest.Album)}
                     sub={`${stats.oldest.Artist} · ${stats.oldest['Release Year']}`}
+                    onClick={() => { setSearchQuery(String(stats.oldest['Release Year'])); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                   />
                 )}
                 {stats.newest && (
@@ -1174,6 +1196,7 @@ const MusicDashboard: React.FC<MusicDashboardProps> = ({ onAddAlbumClick, onEdit
                     label="Newest Album"
                     value={String(stats.newest.Album)}
                     sub={`${stats.newest.Artist} · ${stats.newest['Release Year']}`}
+                    onClick={() => { setSearchQuery(String(stats.newest['Release Year'])); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                   />
                 )}
                 {stats.shortest && (
@@ -1182,6 +1205,7 @@ const MusicDashboard: React.FC<MusicDashboardProps> = ({ onAddAlbumClick, onEdit
                     label="Shortest Album"
                     value={String(stats.shortest.Album)}
                     sub={`${stats.shortest.Artist} · ${formatSeconds(parseLengthToSeconds(stats.shortest.Length))}`}
+                    onClick={() => { setSearchQuery(String(stats.shortest.Album)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                   />
                 )}
                 {stats.longest && (
@@ -1190,6 +1214,7 @@ const MusicDashboard: React.FC<MusicDashboardProps> = ({ onAddAlbumClick, onEdit
                     label="Longest Album"
                     value={String(stats.longest.Album)}
                     sub={`${stats.longest.Artist} · ${formatSeconds(parseLengthToSeconds(stats.longest.Length))}`}
+                    onClick={() => { setSearchQuery(String(stats.longest.Album)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                   />
                 )}
                 {stats.topArtist && (
@@ -1198,6 +1223,7 @@ const MusicDashboard: React.FC<MusicDashboardProps> = ({ onAddAlbumClick, onEdit
                     label="Most Listened"
                     value={stats.topArtist[0]}
                     sub={`${stats.topArtist[1]} albums rated`}
+                    onClick={() => { setSearchQuery(stats.topArtist![0]); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                   />
                 )}
                 {stats.lowestRated && (
@@ -1206,6 +1232,7 @@ const MusicDashboard: React.FC<MusicDashboardProps> = ({ onAddAlbumClick, onEdit
                     label="Lowest Rated"
                     value={String(stats.lowestRated.Album)}
                     sub={`${stats.lowestRated.Artist} · ${stats.lowestRated.Rating}/10`}
+                    onClick={() => { setSearchQuery(String(stats.lowestRated.Album)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                   />
                 )}
               </div>

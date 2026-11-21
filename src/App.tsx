@@ -10,6 +10,7 @@ import ProtectedLayout from './components/layouts/ProtectedLayout';
 import PublicLayout from './components/layouts/PublicLayout';
 
 // ── Lazy-loaded page components for route code-splitting ─────────────────────
+const LandingPage = lazy(() => import('./pages/LandingPage'));
 const Login = lazy(() => import('./pages/Login'));
 const Resume = lazy(() => import('./pages/Resume'));
 const OwnerWallPage = lazy(() => import('./pages/OwnerWallPage'));
@@ -40,11 +41,8 @@ function AppShell() {
       <ErrorBoundary>
         <Suspense fallback={<LoadingFallback />}>
           <Routes>
-            {/* Root redirect — wait for auth to resolve before deciding destination */}
-            <Route
-              path="/"
-              element={loading ? null : <Navigate to={user ? '/dashboard' : '/login'} replace />}
-            />
+            {/* Root — public landing page */}
+            <Route path="/" element={<LandingPage />} />
 
             {/* Standalone full-height public route */}
             <Route path="/login" element={<Login />} />
@@ -65,8 +63,8 @@ function AppShell() {
               <Route path="/experiment" element={<ExperimentPage />} />
             </Route>
 
-            {/* Catch-all → login */}
-            <Route path="*" element={<Navigate to="/login" replace />} />
+            {/* Catch-all → home */}
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
       </ErrorBoundary>
