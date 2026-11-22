@@ -26,7 +26,7 @@ const ExperimentPage = lazy(() => import('./pages/ExperimentPage'));
  * Renders the NicknameModal overlay when the user is logged in but has no nickname yet.
  */
 function AppShell() {
-  const { user, nickname, nicknameLoading, loading } = useAuth();
+  const { user, nickname, nicknameLoading } = useAuth();
 
   // Show nickname modal once auth + nickname state is resolved,
   // user is logged in, and they have no nickname yet.
