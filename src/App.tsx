@@ -20,6 +20,7 @@ const IntakePage = lazy(() => import('./pages/IntakePage'));
 const AddAlbumPage = lazy(() => import('./pages/AddAlbumPage'));
 const LeaderboardPage = lazy(() => import('./pages/LeaderboardPage'));
 const ExperimentPage = lazy(() => import('./pages/ExperimentPage'));
+const WallStudioPage = lazy(() => import('./pages/WallStudioPage'));
 
 /**
  * Inner component that has access to auth context.
@@ -61,6 +62,7 @@ function AppShell() {
               <Route path="/add" element={<AddAlbumPage />} />
               <Route path="/leaderboard" element={<LeaderboardPage />} />
               <Route path="/experiment" element={<ExperimentPage />} />
+              <Route path="/wall-studio" element={<WallStudioPage />} />
             </Route>
 
             {/* Catch-all → home */}

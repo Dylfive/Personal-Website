@@ -126,3 +126,13 @@
 ::-webkit-scrollbar-thumb:hover {
   background: color-mix(in srgb, var(--accent-primary) 40%, transparent);
 }
+
+/* ── Pixel-Art Floating Bob (3D Album Bin) ─────────────────────────────── */
+@keyframes pixel-bob {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-5px); }
+}
+
+.pixel-float-bob {
+  animation: pixel-bob 2.4s steps(4, end) infinite;
+}

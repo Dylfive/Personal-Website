@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, LogOut, Disc3, Music, Users, LayoutGrid, Sparkles, FileText } from 'lucide-react';
+import { Menu, X, LogOut, Disc3, Music, Users, LayoutGrid, Sparkles, FileText, FlaskConical } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 
@@ -140,6 +140,17 @@ const Navbar = () => {
                 My Wall
               </Link>
 
+              {/* Wall Studio (Experimental) */}
+              <Link
+                to="/wall-studio"
+                className={`flex items-center gap-1.5 text-sm font-medium transition-colors hover:text-white ${
+                  location.pathname === '/wall-studio' ? 'text-[color:var(--accent-primary)]' : 'text-white/50'
+                }`}
+              >
+                <FlaskConical className="w-4 h-4" />
+                Wall Studio
+              </Link>
+
               {/* Other Walls (leaderboard) */}
               <Link
                 to="/leaderboard"
@@ -244,6 +255,12 @@ const Navbar = () => {
                   }`}
                 >
                   <LayoutGrid className="w-5 h-5" /> My Wall
+                </Link>
+                <Link
+                  to="/wall-studio"
+                  className="flex items-center gap-2 text-base font-medium text-white/70 hover:text-[color:var(--accent-primary)] transition-colors"
+                >
+                  <FlaskConical className="w-5 h-5" /> Wall Studio
                 </Link>
                 <Link
                   to="/leaderboard"
