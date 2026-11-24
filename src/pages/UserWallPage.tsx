@@ -159,15 +159,15 @@ function WallTile({ album, rank, onClick }: { album: AlbumEntry; rank: number; o
 
       {/* Rank badge */}
       {rank > 0 && (
-        <div className="absolute top-1 left-1 bg-black/75 backdrop-blur-sm rounded px-1 py-0.5 z-10">
-          <span className="text-[8px] font-black text-white leading-none">#{rank}</span>
+        <div className="absolute top-2 left-2 bg-black/75 backdrop-blur-sm rounded-md px-1.5 py-0.5 z-10 border border-white/10">
+          <span className="text-[11px] font-black text-white leading-none">#{rank}</span>
         </div>
       )}
 
       {/* Rating badge */}
       <div
-        className="absolute top-1 right-1 rounded px-1 py-0.5 z-10 text-[8px] font-black leading-none"
-        style={{ background: `${color}cc`, color: '#fff', backdropFilter: 'blur(4px)' }}
+        className="absolute top-2 right-2 rounded-lg px-2 py-1 z-10 text-xs sm:text-sm font-black leading-none shadow-[0_2px_10px_rgba(0,0,0,0.65)] border border-white/20"
+        style={{ background: `${color}eb`, color: '#fff', backdropFilter: 'blur(6px)' }}
       >
         {album.Rating.toFixed(1)}
       </div>
@@ -183,10 +183,10 @@ function WallTile({ album, rank, onClick }: { album: AlbumEntry; rank: number; o
             className="absolute inset-0 flex flex-col justify-end z-20"
             style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.93) 50%, transparent 100%)' }}
           >
-            <div className="p-2">
-              <p className="text-white text-[11px] font-bold leading-tight truncate">{String(album.Album)}</p>
-              <p className="text-white/55 text-[10px] truncate mt-0.5">{album.Artist}</p>
-              <p className="text-white/35 text-[9px] mt-0.5">{album['Release Year']}</p>
+            <div className="p-3">
+              <p className="text-white text-sm font-bold leading-tight truncate">{String(album.Album)}</p>
+              <p className="text-white/65 text-xs truncate mt-0.5">{album.Artist}</p>
+              <p className="text-white/40 text-[11px] mt-0.5">{album['Release Year']}</p>
             </div>
           </motion.div>
         )}
@@ -369,6 +369,7 @@ export default function UserWallPage() {
   const [albums, setAlbums] = useState<AlbumEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [sortMode, setSortMode] = useState<SortMode>('rating_desc');
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [hues, setHues] = useState<Map<string, number>>(new Map());
   const [colorExtracting, setColorExtracting] = useState(false);
@@ -422,7 +423,20 @@ export default function UserWallPage() {
     : 0;
 
   const byRating = useMemo(() => [...albums].sort((a, b) => b.Rating - a.Rating), [albums]);
-  const sorted = useMemo(() => sortedAlbums(albums, sortMode, hues), [albums, sortMode, hues]);
+  const sorted = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const filtered = q
+      ? albums.filter((a) => {
+          const matchTitle = String(a.Album).toLowerCase().includes(q);
+          const matchArtist = a.Artist.toLowerCase().includes(q);
+          const matchGenre = a.Genre.toLowerCase().includes(q);
+          const matchRating =
+            a.Rating.toFixed(1).includes(q) || String(a.Rating).includes(q);
+          return matchTitle || matchArtist || matchGenre || matchRating;
+        })
+      : albums;
+    return sortedAlbums(filtered, sortMode, hues);
+  }, [albums, searchQuery, sortMode, hues]);
   const selectedAlbum = selectedIdx !== null ? sorted[selectedIdx] ?? null : null;
 
   if (loading) {
@@ -464,8 +478,37 @@ export default function UserWallPage() {
         </div>
       </div>
 
-      {/* Sort pills */}
-      <div className="flex flex-wrap gap-2 items-center justify-center mb-6">
+      {/* Search & Sort Controls */}
+      <div className="flex flex-col items-center gap-4 mb-6">
+        <div className="relative w-full max-w-md">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+          <input
+            type="text"
+            placeholder="Search albums, artists, genres, ratings..."
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setSelectedIdx(null);
+            }}
+            className="w-full bg-white/5 border border-white/10 rounded-full py-2.5 pl-10 pr-9 text-sm text-white placeholder-white/40 focus:outline-none focus:border-[color:var(--accent-primary)]/50 focus:ring-1 focus:ring-[color:var(--accent-primary)]/50 transition-all"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchQuery('');
+                setSelectedIdx(null);
+              }}
+              aria-label="Clear search"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        {/* Sort pills */}
+        <div className="flex flex-wrap gap-2 items-center justify-center">
         {SORT_OPTIONS.map(({ key, label, icon }) => (
           <button
             key={key}
@@ -496,19 +539,24 @@ export default function UserWallPage() {
             <span className="text-[10px] text-white/30 font-mono">0° → 360°</span>
           </motion.div>
         )}
+        </div>
       </div>
 
       {/* Wall Grid */}
       {sorted.length === 0 ? (
         <div className="glass-panel rounded-3xl border border-white/10 py-20 text-center">
           <Search className="w-10 h-10 text-white/15 mx-auto mb-3" />
-          <p className="text-white/35 text-sm">This user hasn't added any albums yet.</p>
+          <p className="text-white/35 text-sm">
+            {albums.length > 0 && searchQuery.trim()
+              ? `No albums match "${searchQuery.trim()}".`
+              : "This user hasn't added any albums yet."}
+          </p>
         </div>
       ) : (
         <motion.div
           layout
-          className="grid gap-2"
-          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(108px, 1fr))' }}
+          className="grid gap-3.5"
+          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))' }}
         >
           <AnimatePresence mode="popLayout">
             {sorted.map((album, idx) => (
