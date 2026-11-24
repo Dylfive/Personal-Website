@@ -1,3 +1,12 @@
+import { callGeminiWithFallback } from './gemini';
+import {
+  formatMsToHMS,
+  searchItunesAlbum,
+  fetchItunesAlbumLength,
+} from './itunes';
+
+export { formatMsToHMS };
+
 export interface MetadataFallbackResult {
   trackCount?: number;
   length?: string; // HH:MM:SS format
@@ -6,21 +15,7 @@ export interface MetadataFallbackResult {
   sourceLabel?: string;
 }
 
-/** Formats milliseconds into HH:MM:SS */
-export function formatMsToHMS(ms: number): string {
-  if (!ms || ms <= 0) return '00:00:00';
-  const totalSeconds = Math.floor(ms / 1000);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  return [
-    hours.toString().padStart(2, '0'),
-    minutes.toString().padStart(2, '0'),
-    seconds.toString().padStart(2, '0'),
-  ].join(':');
-}
-
-/** 
+/**
  * 1. Queries MusicBrainz API for standard LP release track count and total length.
  */
 export async function fetchMusicBrainzMetadata(
@@ -48,14 +43,21 @@ export async function fetchMusicBrainzMetadata(
       return { source: 'none' };
     }
 
-    let targetGroup = releaseGroups.find(
-      (rg: any) =>
+    interface MusicBrainzReleaseGroup {
+      id: string;
+      'primary-type'?: string;
+      'secondary-types'?: string[];
+      'first-release-date'?: string;
+    }
+
+    let targetGroup = (releaseGroups as MusicBrainzReleaseGroup[]).find(
+      (rg) =>
         rg['primary-type'] === 'Album' &&
         (!rg['secondary-types'] || rg['secondary-types'].length === 0)
     );
 
     if (!targetGroup) {
-      targetGroup = releaseGroups[0];
+      targetGroup = releaseGroups[0] as MusicBrainzReleaseGroup;
     }
 
     const rgId = targetGroup.id;
@@ -80,10 +82,18 @@ export async function fetchMusicBrainzMetadata(
       return { releaseYear, source: 'musicbrainz', sourceLabel: 'MusicBrainz' };
     }
 
-    let bestRelease = releases.find(
-      (r: any) => r.status === 'Official' && r.media && r.media.length > 0
+    interface MusicBrainzRelease {
+      status?: string;
+      media?: Array<{
+        'track-count'?: number;
+        tracks?: Array<{ length?: number; recording?: { length?: number } }>;
+      }>;
+    }
+
+    let bestRelease = (releases as MusicBrainzRelease[]).find(
+      (r) => r.status === 'Official' && r.media && r.media.length > 0
     );
-    if (!bestRelease) bestRelease = releases[0];
+    if (!bestRelease) bestRelease = releases[0] as MusicBrainzRelease;
 
     let totalMs = 0;
     let trackCount = 0;
@@ -126,35 +136,14 @@ export async function fetchItunesMetadata(
   artistName: string
 ): Promise<MetadataFallbackResult> {
   try {
-    const query = encodeURIComponent(`${albumName} ${artistName}`);
-    const res = await fetch(`https://itunes.apple.com/search?term=${query}&entity=album&limit=10`);
-    if (!res.ok) return { source: 'none' };
-
-    const data = await res.json();
-    if (!data.results || data.results.length === 0) return { source: 'none' };
-
-    // Select standard studio album
-    const top = data.results.find((r: any) =>
-      r.trackCount > 3 &&
-      !r.collectionName.toLowerCase().includes('- single') &&
-      !r.collectionName.toLowerCase().includes('- ep')
-    ) || data.results[0];
+    const top = await searchItunesAlbum(albumName, artistName);
+    if (!top) return { source: 'none' };
 
     const trackCount = top.trackCount || 0;
     const releaseYear = top.releaseDate ? parseInt(top.releaseDate.substring(0, 4)) : undefined;
-    let calculatedLength: string | undefined = undefined;
-
-    if (top.collectionId) {
-      const tracksRes = await fetch(`https://itunes.apple.com/lookup?id=${top.collectionId}&entity=song`);
-      if (tracksRes.ok) {
-        const tracksData = await tracksRes.json();
-        if (tracksData.results && tracksData.results.length > 1) {
-          const songs = tracksData.results.filter((r: any) => r.wrapperType === 'track');
-          const totalMs = songs.reduce((sum: number, song: any) => sum + (song.trackTimeMillis || 0), 0);
-          if (totalMs > 0) calculatedLength = formatMsToHMS(totalMs);
-        }
-      }
-    }
+    const calculatedLength = top.collectionId
+      ? await fetchItunesAlbumLength(top.collectionId)
+      : undefined;
 
     return {
       trackCount: trackCount > 0 ? trackCount : undefined,
@@ -169,19 +158,13 @@ export async function fetchItunesMetadata(
   }
 }
 
-/** 
+/**
  * 3. Prompts Gemini AI to return standard original studio album length and track count.
  */
 export async function fetchGeminiMetadataFallback(
   albumName: string,
   artistName: string
 ): Promise<MetadataFallbackResult> {
-  const apiKey =
-    (import.meta.env.VITE_GEMINI_API_KEY as string | undefined) ||
-    localStorage.getItem('GEMINI_API_KEY');
-
-  if (!apiKey) return { source: 'none' };
-
   const prompt = `You are a music metadata expert. Provide the exact standard studio album track count and runtime for:
 Album: "${albumName}"
 Artist: "${artistName}"
@@ -191,69 +174,28 @@ Return ONLY info for the STANDARD ORIGINAL STUDIO RELEASE (no deluxe bonus track
 Return ONLY a JSON object in this exact format:
 {"trackCount": 10, "length": "00:42:15", "releaseYear": 1973}`;
 
-  const GEMINI_CANDIDATE_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-1.5-flash-latest', 'gemini-1.5-flash', 'gemini-2.0-flash'];
-  let lastErrorMsg = '';
-
-  for (const model of GEMINI_CANDIDATE_MODELS) {
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-    let attempt = 0;
-    const maxAttempts = 3;
-    while (attempt < maxAttempts) {
-      try {
-        const res = await fetch(geminiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.1 },
-          }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const text: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-          const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-          const parsed = JSON.parse(cleaned);
-          return {
-            trackCount: typeof parsed.trackCount === 'number' && parsed.trackCount > 0 ? parsed.trackCount : undefined,
-            length: typeof parsed.length === 'string' && parsed.length.includes(':') ? parsed.length : undefined,
-            releaseYear: typeof parsed.releaseYear === 'number' ? parsed.releaseYear : undefined,
-            source: 'gemini',
-            sourceLabel: 'Gemini AI',
-          };
-        } else {
-          const errorData = await res.json().catch(() => null);
-          const errorMsg = errorData?.error?.message || res.statusText || `HTTP ${res.status}`;
-          lastErrorMsg = errorMsg;
-          // If overload (429), retry after delay
-          if (res.status === 429) {
-            const delay = Math.pow(2, attempt) * 1000; // exponential backoff
-            await new Promise(r => setTimeout(r, delay));
-            attempt++;
-            continue;
-          }
-          // If 404 or unsupported model, break to try next model
-          if (res.status === 404 || errorMsg.includes('not found') || errorMsg.includes('not supported')) {
-            break;
-          }
-          // Other errors abort
-          throw new Error(errorMsg);
-        }
-      } catch (err) {
-        lastErrorMsg = err instanceof Error ? err.message : String(err);
-        // If API key error, abort immediately
-        if (lastErrorMsg.includes('API key') || lastErrorMsg.includes('API_KEY')) {
-          throw err;
-        }
-        // For other errors, break and try next model
-        break;
-      }
+  try {
+    const text = await callGeminiWithFallback(prompt, { temperature: 0.1 });
+    const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const parsed = JSON.parse(cleaned);
+    return {
+      trackCount: typeof parsed.trackCount === 'number' && parsed.trackCount > 0 ? parsed.trackCount : undefined,
+      length: typeof parsed.length === 'string' && parsed.length.includes(':') ? parsed.length : undefined,
+      releaseYear: typeof parsed.releaseYear === 'number' ? parsed.releaseYear : undefined,
+      source: 'gemini',
+      sourceLabel: 'Gemini AI',
+    };
+  } catch (err) {
+    if (err instanceof Error && (err.message === 'NO_API_KEY' || err.message.includes('API key') || err.message.includes('API_KEY'))) {
+      if (err.message === 'NO_API_KEY') return { source: 'none' };
+      throw err;
     }
+    return { source: 'none' };
   }
-  return { source: 'none' };
 }
 
 /**
- * 4. Queries Wikipedia REST API / MediaWiki API for album metadata.
+ * 4. Queries Wikipedia REST API for album release year.
  */
 export async function fetchWikipediaMetadata(
   albumName: string,
@@ -268,7 +210,6 @@ export async function fetchWikipediaMetadata(
     const data = await res.json();
     const extract = data.extract || '';
 
-    // Search extract text for release year
     const yearMatch = extract.match(/\b(19\d\d|20\d\d)\b/);
     const releaseYear = yearMatch ? parseInt(yearMatch[1]) : undefined;
 
@@ -299,7 +240,7 @@ export async function cycleAlbumMetadata(
   currentIndex: number
 ): Promise<MetadataFallbackResult & { nextIndex: number }> {
   const totalSources = CYCLE_SOURCES.length;
-  let nextIndex = (currentIndex + 1) % totalSources;
+  const nextIndex = (currentIndex + 1) % totalSources;
 
   for (let i = 0; i < totalSources; i++) {
     const sourceIdx = (currentIndex + i) % totalSources;
@@ -338,15 +279,14 @@ export async function validateAndFixAlbumMetadata(
   fallbackUsed: boolean;
   source: string;
 }> {
-  let isSuspicious = false;
-
-  if (!currentTrackCount || currentTrackCount === 0 || currentTrackCount > 25) {
-    isSuspicious = true;
-  }
-
-  if (!currentLength || currentLength === '00:00:00' || currentLength.startsWith('03:') || currentLength.startsWith('04:')) {
-    isSuspicious = true;
-  }
+  const isSuspicious =
+    !currentTrackCount ||
+    currentTrackCount === 0 ||
+    currentTrackCount > 25 ||
+    !currentLength ||
+    currentLength === '00:00:00' ||
+    currentLength.startsWith('03:') ||
+    currentLength.startsWith('04:');
 
   if (!isSuspicious) {
     return {

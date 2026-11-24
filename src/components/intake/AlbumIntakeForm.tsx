@@ -1,8 +1,9 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, AlertCircle, CheckCircle2, ArrowRight, AlertTriangle, Pencil } from 'lucide-react';
+import { Sparkles, AlertCircle, CheckCircle2, ArrowRight, AlertTriangle, Pencil, Disc3, Keyboard } from 'lucide-react';
 import RatingInput from './RatingInput';
 import ReviewScreen from './ReviewScreen';
+import ArtistAlbumBrowser from './ArtistAlbumBrowser';
 import {
   appendAlbumToGitHub,
   getUserAlbums,
@@ -12,11 +13,13 @@ import {
   updateAlbumOnGitHub,
 } from '../../lib/albumStore';
 import { enrichAlbumData } from '../../lib/aiEnrichment';
+import type { ItunesAlbum } from '../../lib/itunes';
 import type { AlbumEntry } from '../../types/album';
 import rawAlbumData from '../../data/Album-Data.json';
 import { useAuth } from '../../contexts/AuthContext';
 
 type FormState = 'IDLE' | 'ENRICHING' | 'REVIEW' | 'SUBMITTING' | 'SUCCESS';
+type SearchMode = 'browse' | 'manual';
 
 interface AlbumIntakeFormProps {
   onViewCollection?: () => void;
@@ -36,8 +39,12 @@ export default function AlbumIntakeForm({
   const originalAlbumName = useRef<string>(editAlbum ? String(editAlbum.Album) : '');
 
   const [formState, setFormState] = useState<FormState>(isEditMode ? 'REVIEW' : 'IDLE');
+  const [searchMode, setSearchMode] = useState<SearchMode>('browse');
+  const [existingAlbums, setExistingAlbums] = useState<AlbumEntry[]>(
+    rawAlbumData as AlbumEntry[]
+  );
 
-  // Initial inputs (used in add mode only)
+  // Initial inputs (used in manual add mode only)
   const [albumName, setAlbumName] = useState('');
   const [artistName, setArtistName] = useState('');
   const [rating, setRating] = useState('');
@@ -50,6 +57,41 @@ export default function AlbumIntakeForm({
   const [bypassDuplicate, setBypassDuplicate] = useState(false);
 
   const { user } = useAuth();
+
+  useEffect(() => {
+    if (isEditMode) return;
+    let cancelled = false;
+    getUserAlbums(user?.id)
+      .then((albums) => {
+        if (!cancelled && albums.length > 0) setExistingAlbums(albums);
+      })
+      .catch(() => {
+        // Keep rawAlbumData fallback
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isEditMode, user?.id]);
+
+  // ── Browse-mode: enrich selected iTunes album ───────────────────────────────
+  const handleSelectVisualAlbum = async (album: ItunesAlbum, numRating: number) => {
+    setError(null);
+    setDuplicateWarning(null);
+    setFormState('ENRICHING');
+    try {
+      const enriched = await enrichAlbumData(
+        album.collectionName,
+        album.artistName,
+        numRating,
+        album
+      );
+      setDraft(enriched);
+      setFormState('REVIEW');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'AI Enrichment failed.');
+      setFormState('IDLE');
+    }
+  };
 
   // ── Add-mode: enrich & duplicate check ─────────────────────────────────────
   const handleEnrich = async (e: React.FormEvent) => {
@@ -167,7 +209,11 @@ export default function AlbumIntakeForm({
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto">
+    <div
+      className={`w-full mx-auto transition-all ${
+        formState === 'IDLE' && searchMode === 'browse' ? 'max-w-4xl' : 'max-w-2xl'
+      }`}
+    >
       <motion.div
         layout
         className="glass-panel p-6 sm:p-8 rounded-3xl neon-border overflow-hidden relative"
@@ -182,12 +228,60 @@ export default function AlbumIntakeForm({
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
             >
-              <div className="mb-8">
-                <h2 className="text-2xl font-bold mb-2">Add New Album</h2>
-                <p className="text-white/50 text-sm">Enter the details and let AI do the rest.</p>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+                <div>
+                  <h2 className="text-2xl font-bold mb-1">Add New Album</h2>
+                  <p className="text-white/50 text-sm">
+                    {searchMode === 'browse'
+                      ? 'Search an artist to browse their albums visually.'
+                      : 'Enter the details and let AI do the rest.'}
+                  </p>
+                </div>
+
+                {/* Mode Switcher */}
+                <div className="inline-flex p-1 rounded-xl bg-white/5 border border-white/10 self-start">
+                  <button
+                    type="button"
+                    onClick={() => { setSearchMode('browse'); setError(null); }}
+                    className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all ${
+                      searchMode === 'browse'
+                        ? 'bg-neon-purple text-white shadow-sm'
+                        : 'text-white/50 hover:text-white'
+                    }`}
+                  >
+                    <Disc3 className="w-3.5 h-3.5" />
+                    Browse Artist
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setSearchMode('manual'); setError(null); }}
+                    className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all ${
+                      searchMode === 'manual'
+                        ? 'bg-neon-purple text-white shadow-sm'
+                        : 'text-white/50 hover:text-white'
+                    }`}
+                  >
+                    <Keyboard className="w-3.5 h-3.5" />
+                    Manual Entry
+                  </button>
+                </div>
               </div>
 
-              <form onSubmit={handleEnrich} className="space-y-6">
+              {searchMode === 'browse' ? (
+                <div className="space-y-4">
+                  {error && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+                      <AlertCircle className="w-5 h-5 shrink-0" />
+                      <p>{error}</p>
+                    </motion.div>
+                  )}
+                  <ArtistAlbumBrowser
+                    existingAlbums={existingAlbums}
+                    onSelectAlbum={handleSelectVisualAlbum}
+                  />
+                </div>
+              ) : (
+                <form onSubmit={handleEnrich} className="space-y-6">
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-white/70 mb-2">Album Name</label>
@@ -245,6 +339,7 @@ export default function AlbumIntakeForm({
                   <ArrowRight className="w-5 h-5 ml-2" />
                 </button>
               </form>
+              )}
             </motion.div>
           )}
 
