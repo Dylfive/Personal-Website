@@ -1,4 +1,6 @@
+import { useMemo } from 'react';
 import type { WallBackgroundConfig } from '../../types/wallStudio';
+import { createStarterPixelGrid } from '../../lib/wallStudioStore';
 
 interface WallBackgroundLayerProps {
   config: WallBackgroundConfig;
@@ -10,43 +12,40 @@ const WOOD_PALETTES = {
     base: '#3b2416',
     plankA: '#462b1a',
     plankB: '#331e12',
-    seam: 'rgba(14, 7, 3, 0.55)',
-    grain: 'rgba(20, 10, 4, 0.28)',
-    highlight: 'rgba(255, 200, 145, 0.06)',
+    seam: '#1a0e07',
+    grain: 'rgba(20, 10, 4, 0.35)',
   },
   oak: {
     base: '#7a5230',
     plankA: '#865b36',
     plankB: '#6e4929',
-    seam: 'rgba(42, 24, 10, 0.45)',
-    grain: 'rgba(65, 38, 16, 0.22)',
-    highlight: 'rgba(255, 228, 185, 0.09)',
+    seam: '#3b2412',
+    grain: 'rgba(65, 38, 16, 0.28)',
   },
   birch: {
     base: '#b89b72',
     plankA: '#c3a67c',
     plankB: '#ad8f65',
-    seam: 'rgba(84, 63, 38, 0.35)',
-    grain: 'rgba(110, 84, 52, 0.16)',
-    highlight: 'rgba(255, 248, 232, 0.12)',
+    seam: '#6b5233',
+    grain: 'rgba(110, 84, 52, 0.22)',
   },
 };
 
 const MARBLE_PALETTES = {
   carrara: {
-    bg: 'linear-gradient(135deg, #eceae4 0%, #dcd8cf 45%, #f3f1ec 100%)',
-    vein1: 'rgba(115, 118, 128, 0.26)',
-    vein2: 'rgba(165, 160, 152, 0.18)',
+    bg: '#eceae4',
+    vein1: '#b8b4aa',
+    vein2: '#d8d4ca',
   },
   nero: {
-    bg: 'linear-gradient(135deg, #121317 0%, #1c1e24 50%, #0d0e11 100%)',
-    vein1: 'rgba(226, 204, 156, 0.24)',
-    vein2: 'rgba(255, 255, 255, 0.12)',
+    bg: '#14151a',
+    vein1: '#3a362d',
+    vein2: '#252730',
   },
   emerald: {
-    bg: 'linear-gradient(135deg, #0b241e 0%, #11362d 50%, #071915 100%)',
-    vein1: 'rgba(180, 235, 210, 0.2)',
-    vein2: 'rgba(232, 204, 138, 0.16)',
+    bg: '#0c2620',
+    vein1: '#1b4d40',
+    vein2: '#2c6b58',
   },
 };
 
@@ -56,158 +55,138 @@ export default function WallBackgroundLayer({
 }: WallBackgroundLayerProps) {
   const intensity = (config.textureIntensity ?? 80) / 100;
 
+  const pixelGrid = useMemo(() => {
+    return config.customPixelGrid && config.customPixelGrid.length === 256
+      ? config.customPixelGrid
+      : createStarterPixelGrid('stars');
+  }, [config.customPixelGrid]);
+
+  const tileSize = config.pixelTileSize ?? 96;
+
   return (
-    <div className="absolute inset-0 pointer-events-none overflow-hidden select-none">
-      {/* ── Base Surface ── */}
+    <div
+      className="absolute inset-0 pointer-events-none overflow-hidden select-none"
+      style={{ imageRendering: 'pixelated' }}
+    >
+      {/* ── Wood (Pixel Plank Style) ── */}
       {config.preset === 'wood' && (() => {
         const pal = WOOD_PALETTES[config.woodTone ?? 'walnut'];
         return (
           <div className="absolute inset-0" style={{ backgroundColor: pal.base }}>
-            {/* Horizontal wood planks */}
             <div
               className="absolute inset-0"
               style={{
-                opacity: 0.4 + intensity * 0.6,
+                opacity: 0.45 + intensity * 0.55,
                 backgroundImage: `
                   repeating-linear-gradient(
                     180deg,
                     ${pal.plankA} 0px,
-                    ${pal.plankA} 76px,
-                    ${pal.seam} 76px,
-                    ${pal.seam} 79px,
-                    ${pal.plankB} 79px,
-                    ${pal.plankB} 156px,
-                    ${pal.seam} 156px,
-                    ${pal.seam} 159px
+                    ${pal.plankA} 60px,
+                    ${pal.seam} 60px,
+                    ${pal.seam} 64px,
+                    ${pal.plankB} 64px,
+                    ${pal.plankB} 124px,
+                    ${pal.seam} 124px,
+                    ${pal.seam} 128px
                   )
                 `,
               }}
             />
-            {/* Wood grain SVG overlay */}
-            <svg
-              className="absolute inset-0 w-full h-full"
-              style={{ opacity: 0.35 + intensity * 0.5 }}
-              preserveAspectRatio="none"
-            >
+            {/* Pixel wood knots & grain dashes */}
+            <svg className="absolute inset-0 w-full h-full" style={{ opacity: 0.3 + intensity * 0.55 }}>
               <defs>
-                <filter id="wood-grain-filter" x="0%" y="0%" width="100%" height="100%">
-                  <feTurbulence
-                    type="fractalNoise"
-                    baseFrequency="0.012 0.18"
-                    numOctaves="4"
-                    seed="7"
-                  />
-                  <feColorMatrix
-                    type="matrix"
-                    values="0 0 0 0 0.08  0 0 0 0 0.04  0 0 0 0 0.01  0 0 0 0.42 0"
-                  />
-                </filter>
+                <pattern id="pixel-wood-grain" width="64" height="64" patternUnits="userSpaceOnUse">
+                  <rect x="4" y="12" width="16" height="4" fill={pal.grain} />
+                  <rect x="36" y="24" width="20" height="4" fill={pal.grain} />
+                  <rect x="12" y="40" width="12" height="4" fill={pal.grain} />
+                  <rect x="44" y="48" width="16" height="4" fill={pal.grain} />
+                </pattern>
               </defs>
-              <rect width="100%" height="100%" filter="url(#wood-grain-filter)" />
+              <rect width="100%" height="100%" fill="url(#pixel-wood-grain)" />
             </svg>
-            {/* Subtle satin sheen */}
-            <div
-              className="absolute inset-0"
-              style={{
-                background: `linear-gradient(120deg, ${pal.highlight} 0%, transparent 45%, ${pal.grain} 100%)`,
-              }}
-            />
           </div>
         );
       })()}
 
+      {/* ── Cork (Pixel Dithered Pinboard) ── */}
       {config.preset === 'cork' && (
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundColor: '#a67449',
-            backgroundImage: `
-              radial-gradient(circle at 22% 30%, rgba(196, 145, 96, 0.45), transparent 55%),
-              radial-gradient(circle at 78% 72%, rgba(92, 56, 28, 0.45), transparent 60%)
-            `,
-          }}
-        >
-          {/* Cork speckle SVG */}
-          <svg
-            className="absolute inset-0 w-full h-full"
-            style={{ opacity: 0.4 + intensity * 0.55 }}
-            preserveAspectRatio="none"
-          >
+        <div className="absolute inset-0" style={{ backgroundColor: '#a67449' }}>
+          <svg className="absolute inset-0 w-full h-full" style={{ opacity: 0.35 + intensity * 0.6 }}>
             <defs>
-              <filter id="cork-noise" x="0%" y="0%" width="100%" height="100%">
-                <feTurbulence
-                  type="turbulence"
-                  baseFrequency="0.65"
-                  numOctaves="3"
-                  seed="19"
-                />
-                <feColorMatrix
-                  type="matrix"
-                  values="0.35 0 0 0 0.25  0.22 0 0 0 0.14  0.1 0 0 0 0.06  0 0 0 0.55 0"
-                />
-              </filter>
+              <pattern id="pixel-cork" width="32" height="32" patternUnits="userSpaceOnUse">
+                <rect x="0" y="0" width="4" height="4" fill="#8b5a34" />
+                <rect x="12" y="4" width="4" height="4" fill="#c28e5c" />
+                <rect x="24" y="8" width="4" height="4" fill="#734827" />
+                <rect x="8" y="16" width="4" height="4" fill="#c28e5c" />
+                <rect x="20" y="20" width="4" height="4" fill="#8b5a34" />
+                <rect x="4" y="28" width="4" height="4" fill="#734827" />
+                <rect x="28" y="24" width="4" height="4" fill="#c28e5c" />
+              </pattern>
             </defs>
-            <rect width="100%" height="100%" filter="url(#cork-noise)" />
+            <rect width="100%" height="100%" fill="url(#pixel-cork)" />
           </svg>
-          {/* Subtle pinboard grid dots */}
-          <div
-            className="absolute inset-0 opacity-15"
-            style={{
-              backgroundImage: 'radial-gradient(rgba(45,25,10,0.6) 1px, transparent 1px)',
-              backgroundSize: '28px 28px',
-            }}
-          />
         </div>
       )}
 
+      {/* ── Marble (Stepped Pixel Veins) ── */}
       {config.preset === 'marble' && (() => {
         const pal = MARBLE_PALETTES[config.marbleTone ?? 'carrara'];
         return (
-          <div className="absolute inset-0" style={{ background: pal.bg }}>
-            <svg
-              className="absolute inset-0 w-full h-full"
-              viewBox="0 0 1200 800"
-              preserveAspectRatio="none"
-              style={{ opacity: 0.35 + intensity * 0.65 }}
-            >
+          <div className="absolute inset-0" style={{ backgroundColor: pal.bg }}>
+            <svg className="absolute inset-0 w-full h-full" style={{ opacity: 0.4 + intensity * 0.6 }}>
               <defs>
-                <filter id="marble-vein-blur">
-                  <feTurbulence
-                    type="fractalNoise"
-                    baseFrequency="0.008"
-                    numOctaves="5"
-                    seed="12"
-                    result="noise"
-                  />
-                  <feDisplacementMap
-                    in="SourceGraphic"
-                    in2="noise"
-                    scale="55"
-                    xChannelSelector="R"
-                    yChannelSelector="G"
-                  />
-                </filter>
+                <pattern id="pixel-marble" width="128" height="128" patternUnits="userSpaceOnUse">
+                  <rect x="0" y="24" width="24" height="4" fill={pal.vein1} />
+                  <rect x="24" y="28" width="16" height="4" fill={pal.vein1} />
+                  <rect x="40" y="32" width="24" height="4" fill={pal.vein2} />
+                  <rect x="64" y="28" width="20" height="4" fill={pal.vein1} />
+                  <rect x="84" y="20" width="28" height="4" fill={pal.vein2} />
+                  <rect x="112" y="24" width="16" height="4" fill={pal.vein1} />
+
+                  <rect x="16" y="84" width="20" height="4" fill={pal.vein2} />
+                  <rect x="36" y="88" width="28" height="4" fill={pal.vein1} />
+                  <rect x="64" y="92" width="24" height="4" fill={pal.vein1} />
+                  <rect x="88" y="88" width="20" height="4" fill={pal.vein2} />
+                </pattern>
               </defs>
-              <g filter="url(#marble-vein-blur)" fill="none" strokeLinecap="round">
-                <path d="M-50 120 Q 320 260 640 140 T 1260 280" stroke={pal.vein1} strokeWidth="6" />
-                <path d="M-40 420 Q 280 310 590 480 T 1240 390" stroke={pal.vein1} strokeWidth="4" />
-                <path d="M120 -20 Q 420 280 360 560 T 720 840" stroke={pal.vein2} strokeWidth="3.5" />
-                <path d="M780 -30 Q 650 260 920 510 T 1100 830" stroke={pal.vein1} strokeWidth="2.5" />
-                <path d="M-20 670 Q 440 590 820 710 T 1250 620" stroke={pal.vein2} strokeWidth="3" />
-              </g>
+              <rect width="100%" height="100%" fill="url(#pixel-marble)" />
             </svg>
-            <div
-              className="absolute inset-0"
-              style={{
-                background:
-                  'linear-gradient(135deg, rgba(255,255,255,0.14) 0%, transparent 40%, rgba(0,0,0,0.08) 100%)',
-              }}
-            />
           </div>
         );
       })()}
 
-      {config.preset === 'custom' && (
+      {/* ── Custom (Color / Gradient / Image / 16x16 Pixel-Art Tile) ── */}
+      {config.preset === 'custom' && config.customType === 'pixel-art' && (
+        <svg className="absolute inset-0 w-full h-full" shapeRendering="crispEdges">
+          <defs>
+            <pattern
+              id="custom-pixel-tile"
+              width={tileSize}
+              height={tileSize}
+              patternUnits="userSpaceOnUse"
+            >
+              {pixelGrid.map((color, idx) => {
+                const x = idx % 16;
+                const y = Math.floor(idx / 16);
+                const cell = tileSize / 16;
+                return (
+                  <rect
+                    key={idx}
+                    x={x * cell}
+                    y={y * cell}
+                    width={cell + 0.2}
+                    height={cell + 0.2}
+                    fill={color}
+                  />
+                );
+              })}
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#custom-pixel-tile)" />
+        </svg>
+      )}
+
+      {config.preset === 'custom' && config.customType !== 'pixel-art' && (
         <div
           className="absolute inset-0 transition-all duration-300"
           style={
@@ -257,25 +236,36 @@ export default function WallBackgroundLayer({
         />
       )}
 
+      {/* ── Optional Retro CRT Scanlines ── */}
+      {config.crtScanlines && (
+        <div
+          className="absolute inset-0 opacity-20"
+          style={{
+            backgroundImage:
+              'repeating-linear-gradient(0deg, rgba(0,0,0,0.6) 0px, rgba(0,0,0,0.6) 2px, transparent 2px, transparent 4px)',
+          }}
+        />
+      )}
+
       {/* ── Vignette ── */}
       {config.vignette && (
         <div
           className="absolute inset-0"
           style={{
-            boxShadow: 'inset 0 0 110px rgba(0, 0, 0, 0.55)',
+            boxShadow: 'inset 0 0 90px rgba(0, 0, 0, 0.5)',
           }}
         />
       )}
 
-      {/* ── Wall Trim / Frame ── */}
+      {/* ── Pixel Wall Trim ── */}
       {showWallTrim && (
         <div
-          className="absolute inset-0 rounded-2xl"
+          className="absolute inset-0"
           style={{
             boxShadow:
               config.preset === 'cork'
-                ? 'inset 0 0 0 8px #5c3a21, inset 0 0 18px rgba(0,0,0,0.55)'
-                : 'inset 0 0 0 1px rgba(255,255,255,0.12)',
+                ? 'inset 0 0 0 8px #5c3a21'
+                : 'inset 0 0 0 4px rgba(0,0,0,0.28)',
           }}
         />
       )}

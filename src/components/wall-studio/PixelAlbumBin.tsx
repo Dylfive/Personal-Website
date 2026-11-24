@@ -9,105 +9,27 @@ import {
   Disc3,
   Music,
   Eye,
+  Moon,
+  Sun,
 } from 'lucide-react';
 import type { AlbumEntry } from '../../types/album';
 import type { BinTheme } from '../../types/wallStudio';
 import { MAX_WALL_ALBUMS } from '../../types/wallStudio';
 import { getAlbumKey } from '../../lib/wallStudioStore';
+import { getPixelTheme, pixelShadow } from './pixelTheme';
 
 interface PixelAlbumBinProps {
   allAlbums: AlbumEntry[];
   pinnedKeys: Set<string>;
   binTheme: BinTheme;
+  binDarkMode: boolean;
+  onToggleDarkMode: () => void;
   onPinToWall: (album: AlbumEntry) => void;
   onUnpinFromWall: (albumKey: string) => void;
   onInspectAlbum: (album: AlbumEntry) => void;
 }
 
 type BinSort = 'rating' | 'year' | 'alpha';
-
-interface ThemeTokens {
-  shellBg: string;
-  shellBorder: string;
-  crateFront: string;
-  crateInner: string;
-  crateLip: string;
-  accent: string;
-  accentText: string;
-  textMain: string;
-  textMuted: string;
-  badgeBg: string;
-  btnBg: string;
-  btnHover: string;
-  starColor: string;
-}
-
-const THEME_STYLES: Record<BinTheme, ThemeTokens> = {
-  'cupid-pink': {
-    shellBg: '#fff0f5',
-    shellBorder: '#4a192c',
-    crateFront: '#ff8fab',
-    crateInner: '#3b1525',
-    crateLip: '#fb6f92',
-    accent: '#ff4d79',
-    accentText: '#ffffff',
-    textMain: '#3b1525',
-    textMuted: '#8f4762',
-    badgeBg: '#ffe5ec',
-    btnBg: '#ffb3c6',
-    btnHover: '#ff8fab',
-    starColor: '#ffbe0b',
-  },
-  'sky-blue': {
-    shellBg: '#eef8ff',
-    shellBorder: '#16324f',
-    crateFront: '#7cc6fe',
-    crateInner: '#12263a',
-    crateLip: '#52b2fc',
-    accent: '#2b8cbe',
-    accentText: '#ffffff',
-    textMain: '#16324f',
-    textMuted: '#4a6b8a',
-    badgeBg: '#d8efff',
-    btnBg: '#a6d8ff',
-    btnHover: '#7cc6fe',
-    starColor: '#ffb703',
-  },
-  'cream-arcade': {
-    shellBg: '#fef9ef',
-    shellBorder: '#3d2c1e',
-    crateFront: '#e09f3e',
-    crateInner: '#2b1d12',
-    crateLip: '#c98627',
-    accent: '#d62828',
-    accentText: '#ffffff',
-    textMain: '#3d2c1e',
-    textMuted: '#7f5539',
-    badgeBg: '#fff1d0',
-    btnBg: '#f6d365',
-    btnHover: '#e9c46a',
-    starColor: '#f77f00',
-  },
-  'dark-lofi': {
-    shellBg: '#1b1826',
-    shellBorder: '#c4b5fd',
-    crateFront: '#4c1d95',
-    crateInner: '#0d0b14',
-    crateLip: '#6d28d9',
-    accent: '#a78bfa',
-    accentText: '#110e1b',
-    textMain: '#f3e8ff',
-    textMuted: '#a78bfa',
-    badgeBg: '#2e2640',
-    btnBg: '#3b2d59',
-    btnHover: '#5b428a',
-    starColor: '#fde047',
-  },
-};
-
-function pixelShadow(borderColor: string, size = 4): string {
-  return `${size}px ${size}px 0px ${borderColor}`;
-}
 
 function ratingTierLabel(r: number): string {
   if (r >= 9.5) return 'GRAIL';
@@ -122,6 +44,8 @@ export default function PixelAlbumBin({
   allAlbums,
   pinnedKeys,
   binTheme,
+  binDarkMode,
+  onToggleDarkMode,
   onPinToWall,
   onUnpinFromWall,
   onInspectAlbum,
@@ -131,7 +55,7 @@ export default function PixelAlbumBin({
   const [sortBy, setSortBy] = useState<BinSort>('rating');
   const [activeIndex, setActiveIndex] = useState(0);
 
-  const t = THEME_STYLES[binTheme];
+  const t = getPixelTheme(binTheme, binDarkMode);
   const wallFull = pinnedKeys.size >= MAX_WALL_ALBUMS;
 
   const binAlbums = useMemo(() => {
@@ -179,7 +103,6 @@ export default function PixelAlbumBin({
   const activeKey = activeAlbum ? getAlbumKey(activeAlbum) : '';
   const activeIsPinned = activeKey ? pinnedKeys.has(activeKey) : false;
 
-  // Visible 3D stack window: up to 2 flipped-past (-2,-1), active (0), and 5 behind (+1..+5)
   const visibleSlice = useMemo(() => {
     const items: { album: AlbumEntry; index: number; offset: number }[] = [];
     for (let offset = -2; offset <= 5; offset++) {
@@ -205,7 +128,10 @@ export default function PixelAlbumBin({
       }}
     >
       {/* ── Pixel Header Bar ── */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 mb-4 border-b-4" style={{ borderColor: t.shellBorder }}>
+      <div
+        className="flex flex-wrap items-center justify-between gap-3 pb-3 mb-4 border-b-4"
+        style={{ borderColor: t.shellBorder }}
+      >
         <div className="flex items-center gap-2.5">
           <div
             className="w-8 h-8 flex items-center justify-center"
@@ -234,7 +160,7 @@ export default function PixelAlbumBin({
           </div>
         </div>
 
-        {/* Filter & Search Controls */}
+        {/* Filter, Search & Dark Mode Controls */}
         <div className="flex flex-wrap items-center gap-2">
           <div
             className="flex items-center gap-1.5 px-2 py-1"
@@ -292,6 +218,23 @@ export default function PixelAlbumBin({
           >
             {showAll ? 'ALL ALBUMS' : 'UNPINNED ONLY'}
           </button>
+
+          {/* Dark / Light Mode Toggle for Bin & Studio */}
+          <button
+            onClick={onToggleDarkMode}
+            title={binDarkMode ? 'Switch to Light Pastel Mode' : 'Switch to Dark Mode'}
+            className="flex items-center gap-1 px-2.5 py-1 text-sm font-bold cursor-pointer transition-transform active:translate-y-0.5"
+            style={{
+              fontFamily: '"VT323", monospace',
+              backgroundColor: t.btnBg,
+              color: t.textMain,
+              border: `2px solid ${t.shellBorder}`,
+              boxShadow: pixelShadow(t.shellBorder, 2),
+            }}
+          >
+            {binDarkMode ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+            {binDarkMode ? 'LIGHT' : 'DARK'}
+          </button>
         </div>
       </div>
 
@@ -302,10 +245,7 @@ export default function PixelAlbumBin({
           style={{ borderColor: t.shellBorder, backgroundColor: t.badgeBg }}
         >
           <Sparkles className="w-8 h-8 mx-auto mb-2 opacity-60" />
-          <p
-            className="text-xs"
-            style={{ fontFamily: '"Press Start 2P", monospace' }}
-          >
+          <p className="text-xs" style={{ fontFamily: '"Press Start 2P", monospace' }}>
             BIN IS EMPTY!
           </p>
           <p
@@ -372,12 +312,15 @@ export default function PixelAlbumBin({
                   </div>
                   <span
                     className="text-xs leading-none mt-1 tracking-wider"
-                    style={{ fontFamily: '"Press Start 2P", monospace', fontSize: '8px', color: t.textMuted }}
+                    style={{
+                      fontFamily: '"Press Start 2P", monospace',
+                      fontSize: '8px',
+                      color: t.textMuted,
+                    }}
                   >
                     {ratingTierLabel(activeAlbum.Rating)}
                   </span>
                 </div>
-                {/* Pixel speech-bubble pointer */}
                 <div
                   className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-3 h-3 rotate-45"
                   style={{
@@ -394,7 +337,6 @@ export default function PixelAlbumBin({
               className="relative w-full max-w-[360px] h-[270px] flex items-end justify-center"
               style={{ perspective: '1100px' }}
             >
-              {/* Crate Back Wall & Interior */}
               <div
                 className="absolute bottom-2 w-[310px] h-[195px]"
                 style={{
@@ -404,7 +346,6 @@ export default function PixelAlbumBin({
                 }}
               />
 
-              {/* 3D Stacked Album Sleeves */}
               <div
                 className="relative w-[196px] h-[196px] mb-9"
                 style={{ transformStyle: 'preserve-3d' }}
@@ -415,7 +356,6 @@ export default function PixelAlbumBin({
                   const isActive = offset === 0;
                   const isFlippedPast = offset < 0;
 
-                  // 3D record-store flip geometry
                   let transform: string;
                   let opacity = 1;
                   let zIdx: number;
@@ -448,14 +388,17 @@ export default function PixelAlbumBin({
                         transform,
                         opacity,
                         zIndex: zIdx,
-                        transition: 'transform 0.34s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.28s ease',
+                        transition:
+                          'transform 0.34s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.28s ease',
                         border: `3px solid ${t.shellBorder}`,
                         boxShadow: isActive
                           ? `0 14px 28px rgba(0,0,0,0.45), 0 0 0 3px ${t.accent}`
                           : '0 6px 14px rgba(0,0,0,0.4)',
                       }}
                       className="absolute inset-0 bg-zinc-900 cursor-pointer overflow-hidden"
-                      title={isActive ? 'Click to inspect album' : `Flip to ${String(album.Album)}`}
+                      title={
+                        isActive ? 'Click to inspect album' : `Flip to ${String(album.Album)}`
+                      }
                     >
                       {hasCover ? (
                         <img
@@ -470,10 +413,8 @@ export default function PixelAlbumBin({
                         </div>
                       )}
 
-                      {/* Top sleeve edge highlight (like cardboard LP jacket) */}
                       <div className="absolute top-0 left-0 right-0 h-1.5 bg-white/25" />
 
-                      {/* Pinned indicator tag */}
                       {pinnedKeys.has(key) && (
                         <div
                           className="absolute top-2 left-2 px-1.5 py-0.5 text-[8px] flex items-center gap-1"
@@ -492,7 +433,7 @@ export default function PixelAlbumBin({
                 })}
               </div>
 
-              {/* Crate Front Lip (Pixel-Art Wood/Arcade Box) */}
+              {/* Crate Front Lip */}
               <div
                 className="absolute bottom-0 w-[332px] h-[68px] z-[70] flex flex-col items-center justify-center pointer-events-none"
                 style={{
@@ -501,12 +442,10 @@ export default function PixelAlbumBin({
                   boxShadow: pixelShadow(t.shellBorder, 5),
                 }}
               >
-                {/* Top rim */}
                 <div
                   className="absolute top-0 left-0 right-0 h-3 border-b-4"
                   style={{ backgroundColor: t.crateLip, borderColor: t.shellBorder }}
                 />
-                {/* Crate Label Plate */}
                 <div
                   className="mt-2 px-4 py-1"
                   style={{
@@ -612,7 +551,6 @@ export default function PixelAlbumBin({
                 </div>
               </div>
 
-              {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row gap-2.5">
                 {activeIsPinned ? (
                   <button

@@ -11,6 +11,7 @@ import {
   Upload,
   Eye,
   Magnet,
+  Sticker,
 } from 'lucide-react';
 import type {
   WallBackgroundConfig,
@@ -20,13 +21,21 @@ import type {
   LightingMode,
   ShadowDepth,
   BinTheme,
+  PixelStickerKind,
 } from '../../types/wallStudio';
+import { createStarterPixelGrid } from '../../lib/wallStudioStore';
+import type { PixelThemeTokens } from './pixelTheme';
+import { pixelShadow } from './pixelTheme';
+import PixelTileEditor from './PixelTileEditor';
+import { PixelStickerSprite } from './PixelStickerItem';
 
 interface CustomizationDrawerProps {
   background: WallBackgroundConfig;
   customization: WallCustomizationConfig;
+  theme: PixelThemeTokens;
   onChangeBackground: (patch: Partial<WallBackgroundConfig>) => void;
   onChangeCustomization: (patch: Partial<WallCustomizationConfig>) => void;
+  onAddSticker: (kind: PixelStickerKind) => void;
   onApplyLayout: (layout: 'grid' | 'scatter' | 'shelf') => void;
   onClearWall: () => void;
   onResetWall: () => void;
@@ -37,30 +46,42 @@ const CUSTOM_GRADIENTS = [
   { label: 'Sunset', value: 'linear-gradient(135deg, #4a154b 0%, #9b2c2c 50%, #dd6b20 100%)' },
   { label: 'Sage', value: 'linear-gradient(135deg, #132a13 0%, #31572c 50%, #4f772d 100%)' },
   { label: 'Velvet', value: 'linear-gradient(135deg, #2b091c 0%, #5c1638 50%, #1b0b28 100%)' },
-  { label: 'Cyber', value: 'linear-gradient(135deg, #0f172a 0%, #312e81 50%, #06b6d4 100%)' },
 ];
 
 const FRAME_OPTIONS: { id: FrameStyle; label: string }[] = [
-  { id: 'bare', label: 'Bare Sleeve' },
-  { id: 'matte', label: 'Matte Frame' },
+  { id: 'bare', label: 'Bare' },
+  { id: 'matte', label: 'Matte' },
   { id: 'polaroid', label: 'Polaroid' },
-  { id: 'vinyl-peek', label: 'Vinyl Peek' },
-  { id: 'tape', label: 'Masking Tape' },
-  { id: 'pushpin', label: 'Pushpin' },
+  { id: 'vinyl-peek', label: 'Vinyl' },
+  { id: 'tape', label: 'Tape' },
+  { id: 'pushpin', label: 'Pin' },
 ];
 
 const BIN_THEMES: { id: BinTheme; label: string; swatch: string }[] = [
   { id: 'cupid-pink', label: 'Cupid Pink', swatch: '#ff8fab' },
   { id: 'sky-blue', label: 'Sky Blue', swatch: '#7cc6fe' },
-  { id: 'cream-arcade', label: 'Cream Arcade', swatch: '#f6d365' },
-  { id: 'dark-lofi', label: 'Dark Lo-Fi', swatch: '#a78bfa' },
+  { id: 'cream-arcade', label: 'Arcade', swatch: '#f6d365' },
+  { id: 'dark-lofi', label: 'Lavender', swatch: '#a78bfa' },
+];
+
+const STICKER_KINDS: PixelStickerKind[] = [
+  'star',
+  'heart',
+  'note',
+  'sparkle',
+  'cassette',
+  'crown',
+  'plant',
+  'moon',
 ];
 
 export default function CustomizationDrawer({
   background,
   customization,
+  theme,
   onChangeBackground,
   onChangeCustomization,
+  onAddSticker,
   onApplyLayout,
   onClearWall,
   onResetWall,
@@ -83,29 +104,44 @@ export default function CustomizationDrawer({
     reader.readAsDataURL(file);
   };
 
+  const sectionHeaderStyle: React.CSSProperties = {
+    fontFamily: '"Press Start 2P", monospace',
+    fontSize: '10px',
+    color: theme.textMain,
+  };
+
   return (
-    <div className="glass-panel rounded-2xl p-4 border border-white/10 space-y-5">
-      {/* ── Section 1: Wall Background ── */}
+    <div
+      className="p-4 space-y-5"
+      style={{
+        backgroundColor: theme.shellBg,
+        border: `4px solid ${theme.shellBorder}`,
+        boxShadow: pixelShadow(theme.shellBorder, 6),
+        color: theme.textMain,
+      }}
+    >
+      {/* ── Section 1: Wall Surface ── */}
       <div>
         <div className="flex items-center gap-2 mb-2.5">
-          <Palette className="w-4 h-4 text-[color:var(--accent-primary)]" />
-          <h3 className="text-xs font-bold uppercase tracking-widest text-white/80 font-sans">
-            Wall Surface
-          </h3>
+          <Palette className="w-4 h-4" style={{ color: theme.accent }} />
+          <h3 style={sectionHeaderStyle}>WALL SURFACE</h3>
         </div>
 
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-4 gap-1.5">
           {(['wood', 'cork', 'marble', 'custom'] as BackgroundPreset[]).map((preset) => {
             const active = background.preset === preset;
             return (
               <button
                 key={preset}
                 onClick={() => onChangeBackground({ preset })}
-                className={`px-2.5 py-2 rounded-xl text-xs font-semibold capitalize border transition-all ${
-                  active
-                    ? 'border-[color:var(--accent-primary)] bg-[color:var(--accent-primary)]/20 text-white shadow-sm'
-                    : 'border-white/10 bg-white/[0.03] text-white/60 hover:text-white hover:bg-white/[0.07]'
-                }`}
+                className="px-1.5 py-1.5 text-sm uppercase cursor-pointer transition-transform active:translate-y-0.5"
+                style={{
+                  fontFamily: '"VT323", monospace',
+                  backgroundColor: active ? theme.accent : theme.btnBg,
+                  color: active ? theme.accentText : theme.textMain,
+                  border: `2px solid ${theme.shellBorder}`,
+                  boxShadow: active ? pixelShadow(theme.shellBorder, 2) : 'none',
+                }}
               >
                 {preset}
               </button>
@@ -113,62 +149,101 @@ export default function CustomizationDrawer({
           })}
         </div>
 
-        {/* Sub-options per background */}
         {background.preset === 'wood' && (
-          <div className="mt-2.5 flex items-center gap-2">
-            <span className="text-[11px] text-white/45">Tone:</span>
-            {(['walnut', 'oak', 'birch'] as const).map((tone) => (
-              <button
-                key={tone}
-                onClick={() => onChangeBackground({ woodTone: tone })}
-                className={`px-2.5 py-1 rounded-lg text-[11px] capitalize border transition-all ${
-                  (background.woodTone ?? 'walnut') === tone
-                    ? 'border-amber-400/60 bg-amber-500/20 text-amber-200'
-                    : 'border-white/10 text-white/50 hover:text-white'
-                }`}
-              >
-                {tone}
-              </button>
-            ))}
+          <div className="mt-2 flex items-center gap-1.5">
+            <span className="text-sm" style={{ fontFamily: '"VT323", monospace', color: theme.textMuted }}>
+              TONE:
+            </span>
+            {(['walnut', 'oak', 'birch'] as const).map((tone) => {
+              const active = (background.woodTone ?? 'walnut') === tone;
+              return (
+                <button
+                  key={tone}
+                  onClick={() => onChangeBackground({ woodTone: tone })}
+                  className="px-2 py-0.5 text-sm uppercase cursor-pointer"
+                  style={{
+                    fontFamily: '"VT323", monospace',
+                    backgroundColor: active ? theme.accent : theme.badgeBg,
+                    color: active ? theme.accentText : theme.textMain,
+                    border: `2px solid ${theme.shellBorder}`,
+                  }}
+                >
+                  {tone}
+                </button>
+              );
+            })}
           </div>
         )}
 
         {background.preset === 'marble' && (
-          <div className="mt-2.5 flex items-center gap-2">
-            <span className="text-[11px] text-white/45">Stone:</span>
-            {(['carrara', 'nero', 'emerald'] as const).map((tone) => (
-              <button
-                key={tone}
-                onClick={() => onChangeBackground({ marbleTone: tone })}
-                className={`px-2.5 py-1 rounded-lg text-[11px] capitalize border transition-all ${
-                  (background.marbleTone ?? 'carrara') === tone
-                    ? 'border-cyan-400/60 bg-cyan-500/20 text-cyan-200'
-                    : 'border-white/10 text-white/50 hover:text-white'
-                }`}
-              >
-                {tone}
-              </button>
-            ))}
+          <div className="mt-2 flex items-center gap-1.5">
+            <span className="text-sm" style={{ fontFamily: '"VT323", monospace', color: theme.textMuted }}>
+              STONE:
+            </span>
+            {(['carrara', 'nero', 'emerald'] as const).map((tone) => {
+              const active = (background.marbleTone ?? 'carrara') === tone;
+              return (
+                <button
+                  key={tone}
+                  onClick={() => onChangeBackground({ marbleTone: tone })}
+                  className="px-2 py-0.5 text-sm uppercase cursor-pointer"
+                  style={{
+                    fontFamily: '"VT323", monospace',
+                    backgroundColor: active ? theme.accent : theme.badgeBg,
+                    color: active ? theme.accentText : theme.textMain,
+                    border: `2px solid ${theme.shellBorder}`,
+                  }}
+                >
+                  {tone}
+                </button>
+              );
+            })}
           </div>
         )}
 
         {background.preset === 'custom' && (
-          <div className="mt-3 space-y-2.5 p-3 rounded-xl bg-black/30 border border-white/10">
-            <div className="flex gap-1.5">
-              {(['color', 'gradient', 'image'] as const).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => onChangeBackground({ customType: t })}
-                  className={`flex-1 py-1 rounded-lg text-[11px] font-medium capitalize transition-all ${
-                    background.customType === t
-                      ? 'bg-white/15 text-white'
-                      : 'text-white/45 hover:text-white/80'
-                  }`}
-                >
-                  {t}
-                </button>
-              ))}
+          <div
+            className="mt-2.5 space-y-2.5 p-2.5"
+            style={{
+              backgroundColor: theme.badgeBg,
+              border: `3px solid ${theme.shellBorder}`,
+            }}
+          >
+            <div className="grid grid-cols-4 gap-1">
+              {([
+                { id: 'pixel-art', label: 'PIXEL' },
+                { id: 'color', label: 'COLOR' },
+                { id: 'gradient', label: 'GRAD' },
+                { id: 'image', label: 'IMG' },
+              ] as const).map((t) => {
+                const active = background.customType === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => onChangeBackground({ customType: t.id })}
+                    className="py-1 text-xs font-bold cursor-pointer"
+                    style={{
+                      fontFamily: '"VT323", monospace',
+                      backgroundColor: active ? theme.accent : theme.shellBg,
+                      color: active ? theme.accentText : theme.textMain,
+                      border: `2px solid ${theme.shellBorder}`,
+                    }}
+                  >
+                    {t.label}
+                  </button>
+                );
+              })}
             </div>
+
+            {background.customType === 'pixel-art' && (
+              <PixelTileEditor
+                grid={background.customPixelGrid ?? createStarterPixelGrid('stars')}
+                tileSize={background.pixelTileSize ?? 96}
+                theme={theme}
+                onChangeGrid={(nextGrid) => onChangeBackground({ customPixelGrid: nextGrid })}
+                onChangeTileSize={(size) => onChangeBackground({ pixelTileSize: size })}
+              />
+            )}
 
             {background.customType === 'color' && (
               <div className="flex items-center gap-2">
@@ -176,14 +251,20 @@ export default function CustomizationDrawer({
                   type="color"
                   value={background.customValue.startsWith('#') ? background.customValue : '#1e1b4b'}
                   onChange={(e) => onChangeBackground({ customValue: e.target.value })}
-                  className="w-8 h-8 rounded-lg bg-transparent border border-white/20 cursor-pointer"
+                  className="w-8 h-8 bg-transparent cursor-pointer"
                 />
                 <input
                   type="text"
                   value={background.customValue}
                   onChange={(e) => onChangeBackground({ customValue: e.target.value })}
                   placeholder="#1e1b4b"
-                  className="flex-1 bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-white/30"
+                  className="flex-1 px-2 py-1 text-sm focus:outline-none"
+                  style={{
+                    fontFamily: '"VT323", monospace',
+                    backgroundColor: theme.shellBg,
+                    border: `2px solid ${theme.shellBorder}`,
+                    color: theme.textMain,
+                  }}
                 />
               </div>
             )}
@@ -194,8 +275,12 @@ export default function CustomizationDrawer({
                   <button
                     key={g.label}
                     onClick={() => onChangeBackground({ customValue: g.value })}
-                    className="px-2.5 py-1 rounded-lg text-[11px] font-medium text-white border border-white/15 hover:scale-105 transition-transform"
-                    style={{ background: g.value }}
+                    className="px-2 py-1 text-xs font-bold text-white cursor-pointer"
+                    style={{
+                      background: g.value,
+                      border: `2px solid ${theme.shellBorder}`,
+                      fontFamily: '"VT323", monospace',
+                    }}
                   >
                     {g.label}
                   </button>
@@ -204,243 +289,309 @@ export default function CustomizationDrawer({
             )}
 
             {background.customType === 'image' && (
-              <div className="space-y-2">
-                <div className="flex gap-1.5">
-                  <input
-                    type="text"
-                    value={background.customValue.startsWith('data:') ? '' : background.customValue}
-                    onChange={(e) => onChangeBackground({ customValue: e.target.value })}
-                    placeholder="Paste image URL..."
-                    className="flex-1 bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-white/30"
-                  />
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs text-white flex items-center gap-1"
-                    title="Upload image"
-                  >
-                    <Upload className="w-3.5 h-3.5" />
-                  </button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                  />
-                </div>
+              <div className="flex gap-1.5">
+                <input
+                  type="text"
+                  value={background.customValue.startsWith('data:') ? '' : background.customValue}
+                  onChange={(e) => onChangeBackground({ customValue: e.target.value })}
+                  placeholder="Paste image URL..."
+                  className="flex-1 px-2 py-1 text-sm focus:outline-none"
+                  style={{
+                    fontFamily: '"VT323", monospace',
+                    backgroundColor: theme.shellBg,
+                    border: `2px solid ${theme.shellBorder}`,
+                    color: theme.textMain,
+                  }}
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-2 py-1 cursor-pointer"
+                  style={{
+                    backgroundColor: theme.btnBg,
+                    border: `2px solid ${theme.shellBorder}`,
+                    color: theme.textMain,
+                  }}
+                  title="Upload image"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
               </div>
             )}
           </div>
         )}
-
-        {background.preset !== 'custom' && (
-          <div className="mt-2.5 flex items-center gap-3">
-            <span className="text-[11px] text-white/45 whitespace-nowrap">Texture</span>
-            <input
-              type="range"
-              min={15}
-              max={100}
-              value={background.textureIntensity}
-              onChange={(e) => onChangeBackground({ textureIntensity: Number(e.target.value) })}
-              className="w-full accent-[color:var(--accent-primary)] h-1.5 bg-white/10 rounded-lg cursor-pointer"
-            />
-          </div>
-        )}
       </div>
 
-      {/* ── Section 2: Frame & Mount Style ── */}
+      {/* ── Section 2: Pixel Stickers ── */}
       <div>
-        <div className="flex items-center gap-2 mb-2.5">
-          <Frame className="w-4 h-4 text-[color:var(--accent-secondary)]" />
-          <h3 className="text-xs font-bold uppercase tracking-widest text-white/80 font-sans">
-            Album Mount & Frame
-          </h3>
+        <div className="flex items-center gap-2 mb-2">
+          <Sticker className="w-4 h-4" style={{ color: theme.accent }} />
+          <h3 style={sectionHeaderStyle}>PIXEL STICKERS</h3>
+        </div>
+        <div className="grid grid-cols-4 gap-1.5">
+          {STICKER_KINDS.map((kind) => (
+            <button
+              key={kind}
+              onClick={() => onAddSticker(kind)}
+              title={`Add ${kind} sticker`}
+              className="flex items-center justify-center p-1.5 cursor-pointer transition-transform active:translate-y-0.5 hover:scale-105"
+              style={{
+                backgroundColor: theme.badgeBg,
+                border: `2px solid ${theme.shellBorder}`,
+                boxShadow: pixelShadow(theme.shellBorder, 2),
+              }}
+            >
+              <PixelStickerSprite kind={kind} size={24} />
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Section 3: Album Frame ── */}
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <Frame className="w-4 h-4" style={{ color: theme.accent }} />
+          <h3 style={sectionHeaderStyle}>ALBUM FRAME</h3>
         </div>
         <div className="grid grid-cols-3 gap-1.5">
-          {FRAME_OPTIONS.map((opt) => (
-            <button
-              key={opt.id}
-              onClick={() => onChangeCustomization({ globalFrame: opt.id })}
-              className={`px-2 py-1.5 rounded-lg text-[11px] font-medium border transition-all ${
-                customization.globalFrame === opt.id
-                  ? 'border-[color:var(--accent-secondary)] bg-[color:var(--accent-secondary)]/20 text-white'
-                  : 'border-white/10 bg-white/[0.02] text-white/55 hover:text-white'
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
+          {FRAME_OPTIONS.map((opt) => {
+            const active = customization.globalFrame === opt.id;
+            return (
+              <button
+                key={opt.id}
+                onClick={() => onChangeCustomization({ globalFrame: opt.id })}
+                className="px-2 py-1 text-sm uppercase cursor-pointer"
+                style={{
+                  fontFamily: '"VT323", monospace',
+                  backgroundColor: active ? theme.accent : theme.btnBg,
+                  color: active ? theme.accentText : theme.textMain,
+                  border: `2px solid ${theme.shellBorder}`,
+                }}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* ── Section 3: Lighting & Shadows ── */}
+      {/* ── Section 4: Lighting, Shadows & CRT ── */}
       <div>
-        <div className="flex items-center gap-2 mb-2.5">
-          <Sun className="w-4 h-4 text-amber-400" />
-          <h3 className="text-xs font-bold uppercase tracking-widest text-white/80 font-sans">
-            Lighting & Depth
-          </h3>
+        <div className="flex items-center gap-2 mb-2">
+          <Sun className="w-4 h-4" style={{ color: theme.starColor }} />
+          <h3 style={sectionHeaderStyle}>AMBIANCE</h3>
         </div>
-        <div className="grid grid-cols-4 gap-1.5 mb-2.5">
-          {(['none', 'warm', 'cool', 'spotlight'] as LightingMode[]).map((mode) => (
-            <button
-              key={mode}
-              onClick={() => onChangeBackground({ lighting: mode })}
-              className={`px-2 py-1.5 rounded-lg text-[11px] capitalize border transition-all ${
-                background.lighting === mode
-                  ? 'border-amber-400/60 bg-amber-400/15 text-amber-200'
-                  : 'border-white/10 text-white/55 hover:text-white'
-              }`}
-            >
-              {mode}
-            </button>
-          ))}
+        <div className="grid grid-cols-4 gap-1.5 mb-2">
+          {(['none', 'warm', 'cool', 'spotlight'] as LightingMode[]).map((mode) => {
+            const active = background.lighting === mode;
+            return (
+              <button
+                key={mode}
+                onClick={() => onChangeBackground({ lighting: mode })}
+                className="px-1.5 py-1 text-sm uppercase cursor-pointer"
+                style={{
+                  fontFamily: '"VT323", monospace',
+                  backgroundColor: active ? theme.accent : theme.badgeBg,
+                  color: active ? theme.accentText : theme.textMain,
+                  border: `2px solid ${theme.shellBorder}`,
+                }}
+              >
+                {mode}
+              </button>
+            );
+          })}
         </div>
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[11px] text-white/45">Shadows:</span>
-          <div className="flex gap-1.5">
-            {(['none', 'soft', 'deep'] as ShadowDepth[]).map((depth) => (
-              <button
-                key={depth}
-                onClick={() => onChangeCustomization({ shadowDepth: depth })}
-                className={`px-2.5 py-1 rounded-lg text-[11px] capitalize border transition-all ${
-                  customization.shadowDepth === depth
-                    ? 'border-white/40 bg-white/15 text-white'
-                    : 'border-white/10 text-white/45 hover:text-white'
-                }`}
-              >
-                {depth}
-              </button>
-            ))}
+          <span className="text-sm" style={{ fontFamily: '"VT323", monospace', color: theme.textMuted }}>
+            SHADOW:
+          </span>
+          <div className="flex gap-1">
+            {(['none', 'soft', 'deep'] as ShadowDepth[]).map((depth) => {
+              const active = customization.shadowDepth === depth;
+              return (
+                <button
+                  key={depth}
+                  onClick={() => onChangeCustomization({ shadowDepth: depth })}
+                  className="px-2 py-0.5 text-sm uppercase cursor-pointer"
+                  style={{
+                    fontFamily: '"VT323", monospace',
+                    backgroundColor: active ? theme.accent : theme.badgeBg,
+                    color: active ? theme.accentText : theme.textMain,
+                    border: `2px solid ${theme.shellBorder}`,
+                  }}
+                >
+                  {depth}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
 
-      {/* ── Section 4: Display & Snapping Toggles ── */}
-      <div className="space-y-2">
+      {/* ── Section 5: Display Toggles ── */}
+      <div className="space-y-1.5">
         <div className="flex items-center gap-2 mb-1">
-          <Eye className="w-4 h-4 text-white/60" />
-          <h3 className="text-xs font-bold uppercase tracking-widest text-white/80 font-sans">
-            Display Options
-          </h3>
+          <Eye className="w-4 h-4" style={{ color: theme.accent }} />
+          <h3 style={sectionHeaderStyle}>DISPLAY</h3>
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-1.5">
           {[
-            {
-              key: 'showRatings' as const,
-              label: 'Ratings',
-              val: customization.showRatings,
-            },
-            {
-              key: 'showTitles' as const,
-              label: 'Titles',
-              val: customization.showTitles,
-            },
-            {
-              key: 'snapToGrid' as const,
-              label: 'Snap Grid',
-              val: customization.snapToGrid,
-              icon: <Magnet className="w-3 h-3" />,
-            },
-            {
-              key: 'showWallTrim' as const,
-              label: 'Wall Trim',
-              val: customization.showWallTrim,
-            },
+            { key: 'showRatings' as const, label: 'RATINGS', val: customization.showRatings },
+            { key: 'showTitles' as const, label: 'TITLES', val: customization.showTitles },
+            { key: 'snapToGrid' as const, label: 'GRID', val: customization.snapToGrid, icon: <Magnet className="w-3 h-3" /> },
+            { key: 'showWallTrim' as const, label: 'TRIM', val: customization.showWallTrim },
           ].map((item) => (
             <button
               key={item.key}
               onClick={() => onChangeCustomization({ [item.key]: !item.val })}
-              className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] border transition-all ${
-                item.val
-                  ? 'border-[color:var(--accent-primary)]/50 bg-[color:var(--accent-primary)]/15 text-white'
-                  : 'border-white/10 bg-white/[0.02] text-white/45'
-              }`}
+              className="flex items-center justify-between px-2 py-1 text-sm cursor-pointer"
+              style={{
+                fontFamily: '"VT323", monospace',
+                backgroundColor: item.val ? theme.accent : theme.badgeBg,
+                color: item.val ? theme.accentText : theme.textMain,
+                border: `2px solid ${theme.shellBorder}`,
+              }}
             >
               <span className="flex items-center gap-1">
                 {item.icon}
                 {item.label}
               </span>
-              <span className="text-[10px] font-bold">{item.val ? 'ON' : 'OFF'}</span>
+              <span>{item.val ? 'ON' : 'OFF'}</span>
             </button>
           ))}
-        </div>
-        <button
-          onClick={() => onChangeBackground({ vignette: !background.vignette })}
-          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] border transition-all ${
-            background.vignette
-              ? 'border-white/30 bg-white/10 text-white'
-              : 'border-white/10 bg-white/[0.02] text-white/45'
-          }`}
-        >
-          <span>Vignette Edge</span>
-          <span className="text-[10px] font-bold">{background.vignette ? 'ON' : 'OFF'}</span>
-        </button>
-      </div>
-
-      {/* ── Section 5: Pixel Bin Palette ── */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-bold uppercase tracking-widest text-white/80 font-sans">
-            3D Bin Palette
-          </span>
         </div>
         <div className="grid grid-cols-2 gap-1.5">
-          {BIN_THEMES.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => onChangeCustomization({ binTheme: t.id })}
-              className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] border transition-all ${
-                customization.binTheme === t.id
-                  ? 'border-white/50 bg-white/15 text-white'
-                  : 'border-white/10 bg-white/[0.02] text-white/55 hover:text-white'
-              }`}
-            >
-              <span
-                className="w-3 h-3 rounded-sm border border-black/40 flex-shrink-0"
-                style={{ backgroundColor: t.swatch }}
-              />
-              <span className="truncate">{t.label}</span>
-            </button>
-          ))}
+          <button
+            onClick={() => onChangeBackground({ vignette: !background.vignette })}
+            className="flex items-center justify-between px-2 py-1 text-sm cursor-pointer"
+            style={{
+              fontFamily: '"VT323", monospace',
+              backgroundColor: background.vignette ? theme.accent : theme.badgeBg,
+              color: background.vignette ? theme.accentText : theme.textMain,
+              border: `2px solid ${theme.shellBorder}`,
+            }}
+          >
+            <span>VIGNETTE</span>
+            <span>{background.vignette ? 'ON' : 'OFF'}</span>
+          </button>
+          <button
+            onClick={() => onChangeBackground({ crtScanlines: !background.crtScanlines })}
+            className="flex items-center justify-between px-2 py-1 text-sm cursor-pointer"
+            style={{
+              fontFamily: '"VT323", monospace',
+              backgroundColor: background.crtScanlines ? theme.accent : theme.badgeBg,
+              color: background.crtScanlines ? theme.accentText : theme.textMain,
+              border: `2px solid ${theme.shellBorder}`,
+            }}
+          >
+            <span>CRT LINES</span>
+            <span>{background.crtScanlines ? 'ON' : 'OFF'}</span>
+          </button>
         </div>
       </div>
 
-      {/* ── Section 6: Quick Layouts & Reset ── */}
-      <div className="pt-2 border-t border-white/10 space-y-2">
+      {/* ── Section 6: Studio Palette ── */}
+      <div>
+        <h3 className="mb-2" style={sectionHeaderStyle}>
+          STUDIO PALETTE
+        </h3>
+        <div className="grid grid-cols-2 gap-1.5">
+          {BIN_THEMES.map((t) => {
+            const active = customization.binTheme === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => onChangeCustomization({ binTheme: t.id })}
+                className="flex items-center gap-2 px-2 py-1 text-sm cursor-pointer"
+                style={{
+                  fontFamily: '"VT323", monospace',
+                  backgroundColor: active ? theme.accent : theme.badgeBg,
+                  color: active ? theme.accentText : theme.textMain,
+                  border: `2px solid ${theme.shellBorder}`,
+                }}
+              >
+                <span
+                  className="w-3 h-3 flex-shrink-0"
+                  style={{ backgroundColor: t.swatch, border: `2px solid ${theme.shellBorder}` }}
+                />
+                <span className="truncate">{t.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Section 7: Layouts & Reset ── */}
+      <div className="pt-2 border-t-4 space-y-2" style={{ borderColor: theme.shellBorder }}>
         <div className="grid grid-cols-3 gap-1.5">
           <button
             onClick={() => onApplyLayout('grid')}
-            className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] text-white/80"
+            className="flex items-center justify-center gap-1 px-2 py-1 text-sm cursor-pointer"
+            style={{
+              fontFamily: '"VT323", monospace',
+              backgroundColor: theme.btnBg,
+              border: `2px solid ${theme.shellBorder}`,
+              color: theme.textMain,
+            }}
           >
-            <Grid className="w-3 h-3" /> Grid
+            <Grid className="w-3 h-3" /> GRID
           </button>
           <button
             onClick={() => onApplyLayout('scatter')}
-            className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] text-white/80"
+            className="flex items-center justify-center gap-1 px-2 py-1 text-sm cursor-pointer"
+            style={{
+              fontFamily: '"VT323", monospace',
+              backgroundColor: theme.btnBg,
+              border: `2px solid ${theme.shellBorder}`,
+              color: theme.textMain,
+            }}
           >
-            <Sparkles className="w-3 h-3" /> Scatter
+            <Sparkles className="w-3 h-3" /> SCATTER
           </button>
           <button
             onClick={() => onApplyLayout('shelf')}
-            className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] text-white/80"
+            className="flex items-center justify-center gap-1 px-2 py-1 text-sm cursor-pointer"
+            style={{
+              fontFamily: '"VT323", monospace',
+              backgroundColor: theme.btnBg,
+              border: `2px solid ${theme.shellBorder}`,
+              color: theme.textMain,
+            }}
           >
-            <Rows3 className="w-3 h-3" /> Shelves
+            <Rows3 className="w-3 h-3" /> SHELF
           </button>
         </div>
 
         <div className="grid grid-cols-2 gap-1.5">
           <button
             onClick={onResetWall}
-            className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] text-white/65 hover:text-white"
+            className="flex items-center justify-center gap-1 px-2 py-1 text-sm cursor-pointer"
+            style={{
+              fontFamily: '"VT323", monospace',
+              backgroundColor: theme.badgeBg,
+              border: `2px solid ${theme.shellBorder}`,
+              color: theme.textMain,
+            }}
           >
-            <RotateCcw className="w-3 h-3" /> Reset Default
+            <RotateCcw className="w-3 h-3" /> RESET
           </button>
           <button
             onClick={onClearWall}
-            className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/25 text-[11px] text-red-300"
+            className="flex items-center justify-center gap-1 px-2 py-1 text-sm cursor-pointer"
+            style={{
+              fontFamily: '"VT323", monospace',
+              backgroundColor: '#7f1d1d',
+              border: `2px solid ${theme.shellBorder}`,
+              color: '#fecaca',
+            }}
           >
-            <Trash2 className="w-3 h-3" /> Clear Wall
+            <Trash2 className="w-3 h-3" /> CLEAR
           </button>
         </div>
       </div>

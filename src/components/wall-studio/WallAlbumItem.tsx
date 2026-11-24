@@ -15,6 +15,8 @@ import type {
   FrameStyle,
   ShadowDepth,
 } from '../../types/wallStudio';
+import type { PixelThemeTokens } from './pixelTheme';
+import { pixelShadow } from './pixelTheme';
 
 interface WallAlbumItemProps {
   item: WallItem;
@@ -25,6 +27,7 @@ interface WallAlbumItemProps {
   showRating: boolean;
   showTitle: boolean;
   snapToGrid: boolean;
+  theme: PixelThemeTokens;
   canvasRef: React.RefObject<HTMLDivElement | null>;
   onSelect: () => void;
   onUpdate: (patch: Partial<WallItem>) => void;
@@ -44,20 +47,20 @@ const FRAME_CYCLE: FrameStyle[] = [
 ];
 
 function ratingBadgeColor(r: number): string {
-  if (r >= 9) return '#a855f7';
+  if (r >= 9) return '#ff4d79';
   if (r >= 7.5) return '#06b6d4';
   if (r >= 6) return '#3b82f6';
   if (r >= 4) return '#f59e0b';
   return '#ef4444';
 }
 
-function getShadowStyle(depth: ShadowDepth, selected: boolean): string {
+function getPixelShadow(depth: ShadowDepth, selected: boolean, borderColor: string, accentColor: string): string {
   if (selected) {
-    return '0 18px 40px rgba(0,0,0,0.65), 0 0 0 2px var(--accent-primary)';
+    return `5px 5px 0px ${accentColor}`;
   }
   if (depth === 'none') return 'none';
-  if (depth === 'soft') return '0 6px 16px rgba(0,0,0,0.35)';
-  return '0 14px 30px rgba(0,0,0,0.58), 0 4px 8px rgba(0,0,0,0.35)';
+  if (depth === 'soft') return `3px 3px 0px ${borderColor}`;
+  return `6px 6px 0px rgba(0,0,0,0.65)`;
 }
 
 export default function WallAlbumItem({
@@ -69,6 +72,7 @@ export default function WallAlbumItem({
   showRating,
   showTitle,
   snapToGrid,
+  theme,
   canvasRef,
   onSelect,
   onUpdate,
@@ -82,7 +86,7 @@ export default function WallAlbumItem({
 
   const activeFrame = item.frameStyle ?? globalFrame;
   const hasCover = album.CoverArt && album.CoverArt !== 'Not Found';
-  const baseSizePx = 112; // base square size before scale
+  const baseSizePx = 112;
 
   const handlePointerDownDrag = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
@@ -141,7 +145,6 @@ export default function WallAlbumItem({
       let deg = Math.round((rad * 180) / Math.PI + 90);
       if (deg > 180) deg -= 360;
       if (deg < -180) deg += 360;
-      // Gentle snap to 0° when close
       if (Math.abs(deg) <= 3) deg = 0;
       onUpdate({ rotation: deg });
     };
@@ -178,10 +181,9 @@ export default function WallAlbumItem({
         isDragging ? 'cursor-grabbing' : 'cursor-grab'
       }`}
     >
-      {/* ── Selection Controls (Rotation handle + micro toolbar) ── */}
+      {/* ── Selection Controls (Pixel Rotation Handle & Toolbar) ── */}
       {selected && (
         <>
-          {/* Rotation Handle */}
           <div
             onPointerDown={handlePointerDownRotate}
             onDoubleClick={(e) => {
@@ -191,23 +193,36 @@ export default function WallAlbumItem({
             title="Drag to rotate (double-click to reset 0°)"
             className="absolute -top-8 left-1/2 -translate-x-1/2 flex flex-col items-center cursor-ew-resize z-30"
           >
-            <div className="w-6 h-6 rounded-full bg-[color:var(--accent-primary)] text-white flex items-center justify-center shadow-lg border border-white/30 hover:scale-110 transition-transform">
+            <div
+              className="w-6 h-6 flex items-center justify-center"
+              style={{
+                backgroundColor: theme.accent,
+                color: theme.accentText,
+                border: `2px solid ${theme.shellBorder}`,
+                boxShadow: pixelShadow(theme.shellBorder, 2),
+              }}
+            >
               <RotateCw className="w-3 h-3" />
             </div>
-            <div className="w-px h-2 bg-[color:var(--accent-primary)]" />
+            <div className="w-0.5 h-2" style={{ backgroundColor: theme.shellBorder }} />
           </div>
 
-          {/* Bottom Floating Micro-Toolbar */}
           <div
             onPointerDown={(e) => e.stopPropagation()}
-            className="absolute -bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-0.5 px-1.5 py-1 rounded-full bg-black/85 backdrop-blur-md border border-white/20 shadow-xl z-30 whitespace-nowrap"
+            className="absolute -bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-0.5 px-1 py-1 z-30 whitespace-nowrap"
+            style={{
+              backgroundColor: theme.shellBg,
+              border: `3px solid ${theme.shellBorder}`,
+              boxShadow: pixelShadow(theme.shellBorder, 3),
+            }}
           >
             <button
               onClick={() =>
                 onUpdate({ scale: Math.max(0.65, Math.round((item.scale - 0.1) * 100) / 100) })
               }
               title="Smaller"
-              className="p-1 text-white/70 hover:text-white rounded-full hover:bg-white/10"
+              className="p-1 hover:opacity-80"
+              style={{ color: theme.textMain }}
             >
               <ZoomOut className="w-3 h-3" />
             </button>
@@ -216,35 +231,39 @@ export default function WallAlbumItem({
                 onUpdate({ scale: Math.min(1.5, Math.round((item.scale + 0.1) * 100) / 100) })
               }
               title="Larger"
-              className="p-1 text-white/70 hover:text-white rounded-full hover:bg-white/10"
+              className="p-1 hover:opacity-80"
+              style={{ color: theme.textMain }}
             >
               <ZoomIn className="w-3 h-3" />
             </button>
             <button
               onClick={onBringForward}
               title="Bring Forward"
-              className="p-1 text-white/70 hover:text-white rounded-full hover:bg-white/10"
+              className="p-1 hover:opacity-80"
+              style={{ color: theme.textMain }}
             >
               <ArrowUp className="w-3 h-3" />
             </button>
             <button
               onClick={onSendBackward}
               title="Send Backward"
-              className="p-1 text-white/70 hover:text-white rounded-full hover:bg-white/10"
+              className="p-1 hover:opacity-80"
+              style={{ color: theme.textMain }}
             >
               <ArrowDown className="w-3 h-3" />
             </button>
             <button
               onClick={cycleFrameOverride}
               title={`Frame: ${activeFrame} (click to cycle)`}
-              className="p-1 text-cyan-300 hover:text-cyan-200 rounded-full hover:bg-white/10"
+              className="p-1 hover:opacity-80"
+              style={{ color: theme.accent }}
             >
               <Frame className="w-3 h-3" />
             </button>
             <button
               onClick={onRemove}
               title="Remove from wall"
-              className="p-1 text-red-400 hover:text-red-300 rounded-full hover:bg-red-500/20"
+              className="p-1 text-red-500 hover:text-red-400"
             >
               <X className="w-3 h-3" />
             </button>
@@ -252,54 +271,49 @@ export default function WallAlbumItem({
         </>
       )}
 
-      {/* ── Frame Decor: Pushpin ── */}
+      {/* ── Pixel Pushpin ── */}
       {activeFrame === 'pushpin' && (
-        <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
-          <div className="w-4 h-4 rounded-full bg-gradient-to-br from-rose-400 to-rose-700 border border-white/40 shadow-md" />
-          <div className="w-1.5 h-1.5 rounded-full bg-white/60 absolute top-0.5 left-0.5" />
+        <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+          <div className="w-3.5 h-3.5 bg-[#ff4d79] border-2 border-black shadow-[2px_2px_0px_#000]" />
         </div>
       )}
 
-      {/* ── Frame Decor: Masking Tape ── */}
+      {/* ── Pixel Masking Tape ── */}
       {activeFrame === 'tape' && (
         <div
-          className="absolute -top-2.5 left-1/2 -translate-x-1/2 w-10 h-4 z-20 pointer-events-none -rotate-2"
-          style={{
-            background: 'rgba(245, 232, 185, 0.72)',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
-            backdropFilter: 'blur(1px)',
-          }}
+          className="absolute -top-2.5 left-1/2 -translate-x-1/2 w-10 h-3.5 z-20 pointer-events-none -rotate-2 border-2 border-black/40"
+          style={{ background: '#f6e3a1' }}
         />
       )}
 
-      {/* ── Frame Decor: Vinyl Peek ── */}
+      {/* ── Pixel Vinyl Peek ── */}
       {activeFrame === 'vinyl-peek' && (
         <div
-          className="absolute top-1/2 -right-5 -translate-y-1/2 w-24 h-24 rounded-full pointer-events-none transition-transform duration-300 group-hover:translate-x-2"
+          className="absolute top-1/2 -right-5 -translate-y-1/2 w-24 h-24 rounded-full pointer-events-none transition-transform duration-200 group-hover:translate-x-2 border-2 border-black"
           style={{
             background:
-              'radial-gradient(circle, #e11d48 0%, #e11d48 16%, #18181b 17%, #09090b 45%, #27272a 46%, #09090b 68%, #1f1f23 69%, #09090b 100%)',
-            boxShadow: '0 6px 16px rgba(0,0,0,0.6)',
+              'radial-gradient(circle, #ff4d79 0%, #ff4d79 18%, #18181b 19%, #09090b 45%, #27272a 46%, #09090b 100%)',
           }}
         >
-          <div className="absolute inset-0 m-auto w-2 h-2 rounded-full bg-zinc-300" />
+          <div className="absolute inset-0 m-auto w-2 h-2 rounded-full bg-white" />
         </div>
       )}
 
-      {/* ── Main Album Sleeve / Frame Container ── */}
+      {/* ── Main Album Sleeve / Pixel Frame ── */}
       <div
-        className={`relative transition-shadow duration-200 ${
+        className={`relative ${
           activeFrame === 'matte'
-            ? 'p-1.5 bg-[#121215] border border-white/15 rounded-sm'
+            ? 'p-1.5 bg-[#121215]'
             : activeFrame === 'polaroid'
-            ? 'p-1.5 pb-5 bg-[#f4f1ea] rounded-sm'
-            : 'rounded-md overflow-hidden'
+            ? 'p-1.5 pb-5 bg-[#fef9ef]'
+            : ''
         }`}
         style={{
-          boxShadow: getShadowStyle(shadowDepth, selected),
+          border: `3px solid ${theme.shellBorder}`,
+          boxShadow: getPixelShadow(shadowDepth, selected, theme.shellBorder, theme.accent),
         }}
       >
-        <div className="relative aspect-square w-full overflow-hidden rounded-[3px] bg-zinc-900">
+        <div className="relative aspect-square w-full overflow-hidden bg-zinc-900">
           {hasCover ? (
             <img
               src={album.CoverArt}
@@ -308,16 +322,19 @@ export default function WallAlbumItem({
               className="w-full h-full object-cover pointer-events-none"
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-zinc-800 to-zinc-950">
+            <div className="w-full h-full flex items-center justify-center bg-zinc-800">
               <Music className="w-6 h-6 text-white/25" />
             </div>
           )}
 
-          {/* Rating Badge */}
+          {/* Pixel Rating Badge */}
           {showRating && (
             <div
-              className="absolute top-1 right-1 px-1.5 py-0.5 rounded text-[9px] font-black text-white leading-none shadow"
-              style={{ backgroundColor: ratingBadgeColor(album.Rating) }}
+              className="absolute top-1 right-1 px-1 py-0.5 text-[8px] text-white leading-none border-2 border-black"
+              style={{
+                backgroundColor: ratingBadgeColor(album.Rating),
+                fontFamily: '"Press Start 2P", monospace',
+              }}
             >
               {album.Rating.toFixed(1)}
             </div>
@@ -327,20 +344,36 @@ export default function WallAlbumItem({
         {/* Polaroid Caption */}
         {activeFrame === 'polaroid' && (
           <div className="mt-1 px-0.5 text-center">
-            <p className="text-[9px] font-bold text-zinc-800 truncate leading-tight">
+            <p
+              className="text-sm font-bold text-zinc-900 truncate leading-none"
+              style={{ fontFamily: '"VT323", monospace' }}
+            >
               {String(album.Album)}
             </p>
-            <p className="text-[8px] text-zinc-500 truncate leading-tight">
+            <p
+              className="text-xs text-zinc-600 truncate leading-none"
+              style={{ fontFamily: '"VT323", monospace' }}
+            >
               {album.Artist}
             </p>
           </div>
         )}
       </div>
 
-      {/* Optional Floating Title Plaque (non-polaroid) */}
+      {/* Optional Floating Pixel Title Plaque */}
       {showTitle && activeFrame !== 'polaroid' && (
-        <div className="mt-1.5 px-2 py-0.5 rounded-md bg-black/75 backdrop-blur-sm border border-white/10 text-center">
-          <p className="text-[9px] font-semibold text-white truncate leading-tight">
+        <div
+          className="mt-1.5 px-1.5 py-0.5 text-center"
+          style={{
+            backgroundColor: theme.badgeBg,
+            border: `2px solid ${theme.shellBorder}`,
+            boxShadow: pixelShadow(theme.shellBorder, 2),
+          }}
+        >
+          <p
+            className="text-xs truncate leading-none"
+            style={{ fontFamily: '"VT323", monospace', color: theme.textMain }}
+          >
             {String(album.Album)}
           </p>
         </div>

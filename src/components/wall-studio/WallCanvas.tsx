@@ -5,35 +5,51 @@ import type {
   WallBackgroundConfig,
   WallCustomizationConfig,
   WallItem,
+  WallSticker,
 } from '../../types/wallStudio';
 import { MAX_WALL_ALBUMS } from '../../types/wallStudio';
 import WallBackgroundLayer from './WallBackgrounds';
 import WallAlbumItem from './WallAlbumItem';
+import PixelStickerItem from './PixelStickerItem';
+import type { PixelThemeTokens } from './pixelTheme';
+import { pixelShadow } from './pixelTheme';
 
 interface WallCanvasProps {
   items: WallItem[];
+  stickers: WallSticker[];
   albumMap: Map<string, AlbumEntry>;
   background: WallBackgroundConfig;
   customization: WallCustomizationConfig;
+  theme: PixelThemeTokens;
   selectedKey: string | null;
+  selectedStickerId: string | null;
   onSelectKey: (key: string | null) => void;
+  onSelectStickerId: (id: string | null) => void;
   onUpdateItem: (key: string, patch: Partial<WallItem>) => void;
   onBringForward: (key: string) => void;
   onSendBackward: (key: string) => void;
   onRemoveItem: (key: string) => void;
+  onUpdateSticker: (id: string, patch: Partial<WallSticker>) => void;
+  onRemoveSticker: (id: string) => void;
 }
 
 export default function WallCanvas({
   items,
+  stickers,
   albumMap,
   background,
   customization,
+  theme,
   selectedKey,
+  selectedStickerId,
   onSelectKey,
+  onSelectStickerId,
   onUpdateItem,
   onBringForward,
   onSendBackward,
   onRemoveItem,
+  onUpdateSticker,
+  onRemoveSticker,
 }: WallCanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [isDraggingAny, setIsDraggingAny] = useState(false);
@@ -41,8 +57,15 @@ export default function WallCanvas({
   return (
     <div
       ref={canvasRef}
-      onClick={() => onSelectKey(null)}
-      className="relative w-full h-[540px] sm:h-[600px] lg:h-[640px] rounded-2xl overflow-hidden select-none shadow-2xl border border-white/10"
+      onClick={() => {
+        onSelectKey(null);
+        onSelectStickerId(null);
+      }}
+      className="relative w-full h-[540px] sm:h-[600px] lg:h-[640px] overflow-hidden select-none"
+      style={{
+        border: `4px solid ${theme.shellBorder}`,
+        boxShadow: pixelShadow(theme.shellBorder, 6),
+      }}
     >
       {/* Background Texture & Lighting */}
       <WallBackgroundLayer
@@ -53,41 +76,92 @@ export default function WallCanvas({
       {/* Snap-to-grid visual guide when dragging */}
       {isDraggingAny && customization.snapToGrid && (
         <div
-          className="absolute inset-0 pointer-events-none opacity-25 z-10"
+          className="absolute inset-0 pointer-events-none opacity-30 z-10"
           style={{
             backgroundImage:
-              'linear-gradient(to right, rgba(255,255,255,0.25) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.25) 1px, transparent 1px)',
+              'linear-gradient(to right, rgba(255,255,255,0.3) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.3) 1px, transparent 1px)',
             backgroundSize: '5% 5%',
           }}
         />
       )}
 
-      {/* Top-left Capacity Pill */}
-      <div className="absolute top-3 left-3 z-20 pointer-events-none flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/55 backdrop-blur-md border border-white/15">
-        <span className="w-2 h-2 rounded-full bg-[color:var(--accent-primary)]" />
-        <span className="text-xs font-bold text-white">
-          {items.length} / {MAX_WALL_ALBUMS}
+      {/* Top-left Pixel Capacity Pill */}
+      <div
+        className="absolute top-3 left-3 z-20 pointer-events-none flex items-center gap-2 px-3 py-1.5"
+        style={{
+          backgroundColor: theme.badgeBg,
+          border: `3px solid ${theme.shellBorder}`,
+          boxShadow: pixelShadow(theme.shellBorder, 3),
+          color: theme.textMain,
+        }}
+      >
+        <span
+          className="w-2.5 h-2.5 inline-block"
+          style={{ backgroundColor: theme.accent }}
+        />
+        <span
+          className="text-[10px] leading-none"
+          style={{ fontFamily: '"Press Start 2P", monospace' }}
+        >
+          {items.length}/{MAX_WALL_ALBUMS}
         </span>
-        <span className="text-[11px] text-white/60 hidden sm:inline">on wall</span>
+        <span
+          className="text-sm leading-none hidden sm:inline"
+          style={{ fontFamily: '"VT323", monospace', color: theme.textMuted }}
+        >
+          ON WALL
+        </span>
       </div>
 
       {/* Top-right Quick Hint */}
-      <div className="absolute top-3 right-3 z-20 pointer-events-none hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/45 backdrop-blur-md border border-white/10 text-[11px] text-white/65">
-        Drag to move • Click album to rotate, resize &amp; frame
+      <div
+        className="absolute top-3 right-3 z-20 pointer-events-none hidden md:flex items-center gap-2 px-3 py-1"
+        style={{
+          backgroundColor: theme.badgeBg,
+          border: `3px solid ${theme.shellBorder}`,
+          boxShadow: pixelShadow(theme.shellBorder, 3),
+          fontFamily: '"VT323", monospace',
+          color: theme.textMain,
+        }}
+      >
+        DRAG TO MOVE • CLICK TO ROTATE / RESIZE / FRAME
       </div>
 
       {/* Empty State */}
-      {items.length === 0 && (
+      {items.length === 0 && stickers.length === 0 && (
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 z-10 pointer-events-none">
-          <div className="w-14 h-14 rounded-2xl bg-black/40 border border-white/15 flex items-center justify-center mb-3">
-            <Disc3 className="w-7 h-7 text-white/40" />
+          <div
+            className="w-14 h-14 flex items-center justify-center mb-3"
+            style={{
+              backgroundColor: theme.badgeBg,
+              border: `3px solid ${theme.shellBorder}`,
+              boxShadow: pixelShadow(theme.shellBorder, 3),
+              color: theme.accent,
+            }}
+          >
+            <Disc3 className="w-7 h-7" />
           </div>
-          <p className="text-base font-serif font-bold text-white/85">
-            Your wall is blank
+          <p
+            className="text-xs px-3 py-1.5"
+            style={{
+              fontFamily: '"Press Start 2P", monospace',
+              backgroundColor: theme.badgeBg,
+              border: `3px solid ${theme.shellBorder}`,
+              color: theme.textMain,
+            }}
+          >
+            WALL IS EMPTY!
           </p>
-          <p className="text-xs text-white/55 max-w-xs mt-1">
-            Flip through the 3D pixel album bin below and click &ldquo;Pin to Wall&rdquo; to
-            hang up to {MAX_WALL_ALBUMS} records.
+          <p
+            className="text-lg mt-2 px-3 py-1"
+            style={{
+              fontFamily: '"VT323", monospace',
+              backgroundColor: theme.badgeBg,
+              border: `2px solid ${theme.shellBorder}`,
+              color: theme.textMuted,
+            }}
+          >
+            Flip through the 3D pixel record bin below &amp; click PIN TO WALL.
           </p>
         </div>
       )}
@@ -107,8 +181,12 @@ export default function WallCanvas({
             showRating={customization.showRatings}
             showTitle={customization.showTitles}
             snapToGrid={customization.snapToGrid}
+            theme={theme}
             canvasRef={canvasRef}
-            onSelect={() => onSelectKey(item.albumKey)}
+            onSelect={() => {
+              onSelectStickerId(null);
+              onSelectKey(item.albumKey);
+            }}
             onUpdate={(patch) => onUpdateItem(item.albumKey, patch)}
             onBringForward={() => onBringForward(item.albumKey)}
             onSendBackward={() => onSendBackward(item.albumKey)}
@@ -117,6 +195,24 @@ export default function WallCanvas({
           />
         );
       })}
+
+      {/* Pixel Stickers */}
+      {stickers.map((sticker) => (
+        <PixelStickerItem
+          key={sticker.id}
+          sticker={sticker}
+          selected={selectedStickerId === sticker.id}
+          canvasRef={canvasRef}
+          borderColor={theme.shellBorder}
+          accentColor={theme.accent}
+          onSelect={() => {
+            onSelectKey(null);
+            onSelectStickerId(sticker.id);
+          }}
+          onUpdate={(patch) => onUpdateSticker(sticker.id, patch)}
+          onRemove={() => onRemoveSticker(sticker.id)}
+        />
+      ))}
     </div>
   );
 }

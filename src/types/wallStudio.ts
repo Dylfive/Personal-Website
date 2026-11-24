@@ -1,6 +1,6 @@
 export type BackgroundPreset = 'wood' | 'cork' | 'marble' | 'custom';
 
-export type CustomBackgroundType = 'color' | 'gradient' | 'image';
+export type CustomBackgroundType = 'color' | 'gradient' | 'image' | 'pixel-art';
 
 export type LightingMode = 'none' | 'warm' | 'cool' | 'spotlight';
 
@@ -15,6 +15,26 @@ export type FrameStyle =
 export type ShadowDepth = 'none' | 'soft' | 'deep';
 
 export type BinTheme = 'cupid-pink' | 'sky-blue' | 'cream-arcade' | 'dark-lofi';
+
+export type PixelStickerKind =
+  | 'star'
+  | 'heart'
+  | 'note'
+  | 'sparkle'
+  | 'cassette'
+  | 'crown'
+  | 'plant'
+  | 'moon';
+
+export interface WallSticker {
+  id: string;
+  kind: PixelStickerKind;
+  x: number;
+  y: number;
+  rotation: number;
+  scale: number;
+  zIndex: number;
+}
 
 export interface WallItem {
   albumKey: string;
@@ -41,6 +61,12 @@ export interface WallBackgroundConfig {
   lighting: LightingMode;
   woodTone?: 'oak' | 'walnut' | 'birch';
   marbleTone?: 'carrara' | 'nero' | 'emerald';
+  /** 16x16 pixel grid (256 hex strings) for custom pixel-art tiled background */
+  customPixelGrid?: string[];
+  /** Display tile size in px for custom pixel-art background */
+  pixelTileSize?: number;
+  /** Optional retro CRT scanline overlay */
+  crtScanlines?: boolean;
 }
 
 export interface WallCustomizationConfig {
@@ -51,10 +77,12 @@ export interface WallCustomizationConfig {
   snapToGrid: boolean;
   showWallTrim: boolean;
   binTheme: BinTheme;
+  binDarkMode: boolean;
 }
 
 export interface WallStudioState {
   items: WallItem[];
+  stickers: WallSticker[];
   background: WallBackgroundConfig;
   customization: WallCustomizationConfig;
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { SlidersHorizontal, FlaskConical, Loader2, X, Star, Calendar, Clock, Disc3, Music } from 'lucide-react';
+import { SlidersHorizontal, FlaskConical, Loader2, X, Star, Calendar, Clock, Disc3, Music, Moon, Sun } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserAlbums } from '../lib/albumStore';
 import type { AlbumEntry } from '../types/album';
@@ -8,6 +8,8 @@ import type {
   WallItem,
   WallBackgroundConfig,
   WallCustomizationConfig,
+  PixelStickerKind,
+  WallSticker,
 } from '../types/wallStudio';
 import { MAX_WALL_ALBUMS } from '../types/wallStudio';
 import {
@@ -20,6 +22,7 @@ import {
   DEFAULT_BACKGROUND,
   DEFAULT_CUSTOMIZATION,
 } from '../lib/wallStudioStore';
+import { getPixelTheme, pixelShadow } from '../components/wall-studio/pixelTheme';
 import WallCanvas from '../components/wall-studio/WallCanvas';
 import CustomizationDrawer from '../components/wall-studio/CustomizationDrawer';
 import PixelAlbumBin from '../components/wall-studio/PixelAlbumBin';
@@ -31,10 +34,10 @@ export default function WallStudioPage() {
   const [loading, setLoading] = useState(true);
   const [studio, setStudio] = useState<WallStudioState | null>(null);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [selectedStickerId, setSelectedStickerId] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(true);
   const [inspectedAlbum, setInspectedAlbum] = useState<AlbumEntry | null>(null);
 
-  // Load user's albums & studio state
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -53,7 +56,6 @@ export default function WallStudioPage() {
     };
   }, [user?.id]);
 
-  // Auto-save studio state whenever it changes
   useEffect(() => {
     if (studio && !loading) {
       saveWallStudioState(user?.id, studio);
@@ -128,6 +130,47 @@ export default function WallStudioPage() {
     if (selectedKey === key) setSelectedKey(null);
   };
 
+  const handleAddSticker = (kind: PixelStickerKind) => {
+    const id = `stk_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    setStudio((prev) => {
+      if (!prev) return prev;
+      const offset = prev.stickers.length * 1.4;
+      const newSticker: WallSticker = {
+        id,
+        kind,
+        x: Math.round((50 + Math.cos(offset) * 16) * 10) / 10,
+        y: Math.round((50 + Math.sin(offset) * 14) * 10) / 10,
+        rotation: 0,
+        scale: 1,
+        zIndex: 500 + prev.stickers.length,
+      };
+      return { ...prev, stickers: [...prev.stickers, newSticker] };
+    });
+    setSelectedKey(null);
+    setSelectedStickerId(id);
+  };
+
+  const handleUpdateSticker = (id: string, patch: Partial<WallSticker>) => {
+    setStudio((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        stickers: prev.stickers.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+      };
+    });
+  };
+
+  const handleRemoveSticker = (id: string) => {
+    setStudio((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        stickers: prev.stickers.filter((s) => s.id !== id),
+      };
+    });
+    if (selectedStickerId === id) setSelectedStickerId(null);
+  };
+
   const handlePinToWall = (album: AlbumEntry) => {
     const key = getAlbumKey(album);
     setStudio((prev) => {
@@ -136,7 +179,6 @@ export default function WallStudioPage() {
       if (prev.items.some((it) => it.albumKey === key)) return prev;
 
       const maxZ = prev.items.reduce((m, it) => Math.max(m, it.zIndex), 0);
-      // Place near center with slight organic offset so multiple pins don't stack identically
       const offsetAngle = prev.items.length * 1.1;
       const x = Math.round((50 + Math.cos(offsetAngle) * 14) * 10) / 10;
       const y = Math.round((50 + Math.sin(offsetAngle) * 12) * 10) / 10;
@@ -151,6 +193,7 @@ export default function WallStudioPage() {
       };
       return { ...prev, items: [...prev.items, newItem] };
     });
+    setSelectedStickerId(null);
     setSelectedKey(key);
   };
 
@@ -171,51 +214,113 @@ export default function WallStudioPage() {
   };
 
   const handleClearWall = () => {
-    setStudio((prev) => (prev ? { ...prev, items: [] } : prev));
+    setStudio((prev) => (prev ? { ...prev, items: [], stickers: [] } : prev));
     setSelectedKey(null);
+    setSelectedStickerId(null);
   };
 
   const handleResetWall = () => {
     setStudio({
       items: createGridLayout(albums, Math.min(12, albums.length)),
+      stickers: [],
       background: { ...DEFAULT_BACKGROUND },
       customization: { ...DEFAULT_CUSTOMIZATION },
     });
     setSelectedKey(null);
+    setSelectedStickerId(null);
   };
 
   if (loading || !studio) {
     return (
       <div className="min-h-[75vh] flex flex-col items-center justify-center gap-3 text-white/60">
         <Loader2 className="w-8 h-8 animate-spin text-[color:var(--accent-primary)]" />
-        <p className="text-sm">Loading your Wall Studio...</p>
+        <p className="text-lg" style={{ fontFamily: '"VT323", monospace' }}>
+          LOADING WALL STUDIO...
+        </p>
       </div>
     );
   }
 
+  const theme = getPixelTheme(
+    studio.customization.binTheme,
+    studio.customization.binDarkMode
+  );
+
   return (
-    <div className="container mx-auto px-4 sm:px-6 pb-20 space-y-6">
-      {/* ── Page Header ── */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
+    <div className="container mx-auto px-4 sm:px-6 pb-20 space-y-6" style={{ imageRendering: 'pixelated' }}>
+      {/* ── Pixel-Art Page Header ── */}
+      <div
+        className="flex flex-wrap items-center justify-between gap-4 p-4 sm:p-5"
+        style={{
+          backgroundColor: theme.shellBg,
+          border: `4px solid ${theme.shellBorder}`,
+          boxShadow: pixelShadow(theme.shellBorder, 6),
+          color: theme.textMain,
+        }}
+      >
         <div>
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[color:var(--accent-primary)]/15 border border-[color:var(--accent-primary)]/30 text-[color:var(--accent-primary)] text-[11px] font-bold uppercase tracking-widest mb-2">
-            <FlaskConical className="w-3.5 h-3.5" /> Experimental Studio
+          <div
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[9px] mb-2"
+            style={{
+              fontFamily: '"Press Start 2P", monospace',
+              backgroundColor: theme.accent,
+              color: theme.accentText,
+              border: `2px solid ${theme.shellBorder}`,
+            }}
+          >
+            <FlaskConical className="w-3 h-3" /> PIXEL STUDIO
           </div>
-          <h1 className="text-3xl sm:text-4xl font-serif font-bold text-white tracking-tight">
-            Custom Album Wall &amp; 3D Bin
+          <h1
+            className="text-xl sm:text-2xl tracking-tight leading-snug"
+            style={{ fontFamily: '"Press Start 2P", monospace', color: theme.textMain }}
+          >
+            ALBUM WALL &amp; 3D BIN
           </h1>
-          <p className="text-sm text-white/55 mt-1">
-            Curate up to {MAX_WALL_ALBUMS} records on your custom wall, then flip through the rest of your collection in the pixel crate below.
+          <p
+            className="text-lg mt-1"
+            style={{ fontFamily: '"VT323", monospace', color: theme.textMuted }}
+          >
+            Curate up to {MAX_WALL_ALBUMS} records, paint custom pixel tiles, place pixel stickers &amp; flip through your crate.
           </p>
         </div>
 
-        <button
-          onClick={() => setDrawerOpen((v) => !v)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl glass-panel border border-white/15 hover:border-[color:var(--accent-primary)]/50 text-sm font-semibold text-white transition-all"
-        >
-          <SlidersHorizontal className="w-4 h-4 text-[color:var(--accent-primary)]" />
-          {drawerOpen ? 'Hide Studio Controls' : 'Customize Wall'}
-        </button>
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() =>
+              handleChangeCustomization({ binDarkMode: !studio.customization.binDarkMode })
+            }
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-[10px] cursor-pointer transition-transform active:translate-y-0.5"
+            style={{
+              fontFamily: '"Press Start 2P", monospace',
+              backgroundColor: theme.badgeBg,
+              color: theme.textMain,
+              border: `3px solid ${theme.shellBorder}`,
+              boxShadow: pixelShadow(theme.shellBorder, 3),
+            }}
+          >
+            {studio.customization.binDarkMode ? (
+              <Sun className="w-3.5 h-3.5" />
+            ) : (
+              <Moon className="w-3.5 h-3.5" />
+            )}
+            {studio.customization.binDarkMode ? 'LIGHT' : 'DARK'}
+          </button>
+
+          <button
+            onClick={() => setDrawerOpen((v) => !v)}
+            className="inline-flex items-center gap-2 px-3.5 py-2 text-[10px] cursor-pointer transition-transform active:translate-y-0.5"
+            style={{
+              fontFamily: '"Press Start 2P", monospace',
+              backgroundColor: theme.btnBg,
+              color: theme.textMain,
+              border: `3px solid ${theme.shellBorder}`,
+              boxShadow: pixelShadow(theme.shellBorder, 3),
+            }}
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            {drawerOpen ? 'HIDE TOOLS' : 'CUSTOMIZE'}
+          </button>
+        </div>
       </div>
 
       {/* ── Wall + Customization Drawer Grid ── */}
@@ -223,15 +328,21 @@ export default function WallStudioPage() {
         <div className={drawerOpen ? 'xl:col-span-9' : 'xl:col-span-12'}>
           <WallCanvas
             items={studio.items}
+            stickers={studio.stickers}
             albumMap={albumMap}
             background={studio.background}
             customization={studio.customization}
+            theme={theme}
             selectedKey={selectedKey}
+            selectedStickerId={selectedStickerId}
             onSelectKey={setSelectedKey}
+            onSelectStickerId={setSelectedStickerId}
             onUpdateItem={handleUpdateItem}
             onBringForward={handleBringForward}
             onSendBackward={handleSendBackward}
             onRemoveItem={handleRemoveItem}
+            onUpdateSticker={handleUpdateSticker}
+            onRemoveSticker={handleRemoveSticker}
           />
         </div>
 
@@ -240,8 +351,10 @@ export default function WallStudioPage() {
             <CustomizationDrawer
               background={studio.background}
               customization={studio.customization}
+              theme={theme}
               onChangeBackground={handleChangeBackground}
               onChangeCustomization={handleChangeCustomization}
+              onAddSticker={handleAddSticker}
               onApplyLayout={handleApplyLayout}
               onClearWall={handleClearWall}
               onResetWall={handleResetWall}
@@ -255,30 +368,48 @@ export default function WallStudioPage() {
         allAlbums={albums}
         pinnedKeys={pinnedKeys}
         binTheme={studio.customization.binTheme}
+        binDarkMode={studio.customization.binDarkMode}
+        onToggleDarkMode={() =>
+          handleChangeCustomization({ binDarkMode: !studio.customization.binDarkMode })
+        }
         onPinToWall={handlePinToWall}
         onUnpinFromWall={handleRemoveItem}
         onInspectAlbum={setInspectedAlbum}
       />
 
-      {/* ── Album Inspect Modal ── */}
+      {/* ── Pixel-Styled Album Inspect Modal ── */}
       {inspectedAlbum && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75"
           onClick={() => setInspectedAlbum(null)}
         >
           <div
-            className="relative w-full max-w-md glass-panel bg-[#141418] rounded-2xl p-6 border border-white/15 shadow-2xl"
+            className="relative w-full max-w-md p-6"
+            style={{
+              backgroundColor: theme.shellBg,
+              border: `4px solid ${theme.shellBorder}`,
+              boxShadow: pixelShadow(theme.shellBorder, 8),
+              color: theme.textMain,
+            }}
             onClick={(e) => e.stopPropagation()}
           >
             <button
               onClick={() => setInspectedAlbum(null)}
-              className="absolute top-4 right-4 text-white/50 hover:text-white"
+              className="absolute top-3 right-3 p-1 cursor-pointer"
+              style={{
+                backgroundColor: theme.btnBg,
+                border: `2px solid ${theme.shellBorder}`,
+                color: theme.textMain,
+              }}
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
 
             <div className="flex gap-4 items-center mb-5">
-              <div className="w-24 h-24 rounded-xl overflow-hidden bg-zinc-900 border border-white/10 flex-shrink-0">
+              <div
+                className="w-24 h-24 overflow-hidden bg-zinc-900 flex-shrink-0"
+                style={{ border: `3px solid ${theme.shellBorder}` }}
+              >
                 {inspectedAlbum.CoverArt && inspectedAlbum.CoverArt !== 'Not Found' ? (
                   <img
                     src={inspectedAlbum.CoverArt}
@@ -292,28 +423,56 @@ export default function WallStudioPage() {
                 )}
               </div>
               <div className="min-w-0">
-                <h3 className="text-xl font-serif font-bold text-white truncate">
+                <h3
+                  className="text-2xl font-bold truncate leading-tight"
+                  style={{ fontFamily: '"VT323", monospace', color: theme.textMain }}
+                >
                   {String(inspectedAlbum.Album)}
                 </h3>
-                <p className="text-sm text-white/60 truncate">{inspectedAlbum.Artist}</p>
-                <div className="inline-flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-full bg-[color:var(--accent-primary)]/20 border border-[color:var(--accent-primary)]/40 text-xs font-bold text-white">
-                  <Star className="w-3.5 h-3.5 text-[color:var(--accent-primary)]" />
-                  {inspectedAlbum.Rating.toFixed(1)} / 10
+                <p
+                  className="text-lg truncate"
+                  style={{ fontFamily: '"VT323", monospace', color: theme.textMuted }}
+                >
+                  {inspectedAlbum.Artist}
+                </p>
+                <div
+                  className="inline-flex items-center gap-1.5 mt-2 px-2.5 py-1 text-[10px]"
+                  style={{
+                    fontFamily: '"Press Start 2P", monospace',
+                    backgroundColor: theme.accent,
+                    color: theme.accentText,
+                    border: `2px solid ${theme.shellBorder}`,
+                  }}
+                >
+                  <Star className="w-3.5 h-3.5" />
+                  {inspectedAlbum.Rating.toFixed(1)}
                 </div>
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2 mb-5">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-white/70">
+            <div
+              className="flex flex-wrap gap-2 mb-5 text-base"
+              style={{ fontFamily: '"VT323", monospace' }}
+            >
+              <span
+                className="inline-flex items-center gap-1.5 px-2.5 py-0.5"
+                style={{ backgroundColor: theme.badgeBg, border: `2px solid ${theme.shellBorder}` }}
+              >
                 <Calendar className="w-3.5 h-3.5" /> {inspectedAlbum['Release Year']}
               </span>
               {inspectedAlbum.Length && (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-white/70">
+                <span
+                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5"
+                  style={{ backgroundColor: theme.badgeBg, border: `2px solid ${theme.shellBorder}` }}
+                >
                   <Clock className="w-3.5 h-3.5" /> {inspectedAlbum.Length}
                 </span>
               )}
               {inspectedAlbum.TrackCount ? (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-white/70">
+                <span
+                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5"
+                  style={{ backgroundColor: theme.badgeBg, border: `2px solid ${theme.shellBorder}` }}
+                >
                   <Disc3 className="w-3.5 h-3.5" /> {inspectedAlbum.TrackCount} tracks
                 </span>
               ) : null}
