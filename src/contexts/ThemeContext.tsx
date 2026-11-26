@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { useAuth } from './AuthContext';
 
 // ─── Theme Definitions ────────────────────────────────────────────────────────
 // 16 curated color combinations — no orange/black/white combos.
@@ -246,6 +247,7 @@ function applyTheme(theme: ThemeDef) {
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
   const [siteTheme, setSiteThemeState] = useState<ThemeDef>(() => {
     const saved = localStorage.getItem(SITE_THEME_KEY);
     if (saved) {
@@ -260,19 +262,63 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     applyTheme(siteTheme);
   }, [siteTheme]);
 
-  const setSiteTheme = async (themeId: string, userId?: string, email?: string) => {
+  // Sync theme from Supabase on mount and when user changes
+  useEffect(() => {
+    let cancelled = false;
+    async function loadRemoteTheme() {
+      try {
+        if (user?.id) {
+          const { data } = await supabase
+            .from('user_profiles')
+            .select('ui_theme')
+            .eq('user_id', user.id)
+            .single();
+          if (!cancelled && data?.ui_theme) {
+            const found = THEMES.find(t => t.id === data.ui_theme);
+            if (found) {
+              setSiteThemeState(found);
+              localStorage.setItem(SITE_THEME_KEY, found.id);
+              return;
+            }
+          }
+        }
+        // Fallback: load owner's site-wide theme (e.g. for logged-out visitors or new users)
+        const { data: ownerData } = await supabase
+          .from('user_profiles')
+          .select('ui_theme')
+          .ilike('nickname', 'Dylan')
+          .limit(1);
+        const ownerThemeId = ownerData?.[0]?.ui_theme;
+        if (!cancelled && ownerThemeId) {
+          const found = THEMES.find(t => t.id === ownerThemeId);
+          if (found) {
+            setSiteThemeState(found);
+            localStorage.setItem(SITE_THEME_KEY, found.id);
+          }
+        }
+      } catch {
+        // Keep localStorage / default fallback
+      }
+    }
+    loadRemoteTheme();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  const setSiteTheme = async (themeId: string, userId?: string, _email?: string) => {
     const found = THEMES.find(t => t.id === themeId);
     if (!found) return;
     setSiteThemeState(found);
     localStorage.setItem(SITE_THEME_KEY, themeId);
 
-    // Persist to Supabase for owner only (site-wide)
-    if (email === OWNER_EMAIL && userId) {
+    const targetUserId = userId ?? user?.id;
+    if (targetUserId) {
       try {
         await supabase
           .from('user_profiles')
           .update({ ui_theme: themeId })
-          .eq('user_id', userId);
+          .eq('user_id', targetUserId);
       } catch {
         // localStorage fallback already set
       }

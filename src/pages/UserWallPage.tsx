@@ -7,6 +7,7 @@ import {
   X, ArrowLeft, AlignLeft, Trophy, Palette, Loader2, Pencil, SlidersHorizontal, RotateCcw,
 } from 'lucide-react';
 import { getUserAlbumsForProfile, getUserProfile } from '../lib/profileStore';
+import { supabase } from '../lib/supabase';
 import type { AlbumEntry } from '../types/album';
 import type { UserProfile } from '../lib/profileStore';
 import ViewingPlatformButtons from '../components/ViewingPlatformButtons';
@@ -466,6 +467,18 @@ export default function UserWallPage() {
   const [prefs, setPrefs] = useState<WallViewPrefs>(loadWallPrefs);
   const [customizeOpen, setCustomizeOpen] = useState(false);
 
+  const saveRemotePrefs = async (next: WallViewPrefs) => {
+    if (!user?.id) return;
+    try {
+      await supabase
+        .from('user_profiles')
+        .update({ wall_prefs: next })
+        .eq('user_id', user.id);
+    } catch {
+      // localStorage fallback already set
+    }
+  };
+
   const updatePrefs = (patch: Partial<WallViewPrefs>) => {
     setPrefs((prev) => {
       const next = { ...prev, ...patch };
@@ -474,9 +487,40 @@ export default function UserWallPage() {
       } catch {
         // ignore storage quota errors
       }
+      void saveRemotePrefs(next);
       return next;
     });
   };
+
+  // Sync Album Wall customization prefs from Supabase
+  useEffect(() => {
+    let cancelled = false;
+    const targetId = user?.id ?? userId;
+    if (!targetId) return;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('user_profiles')
+          .select('wall_prefs')
+          .eq('user_id', targetId)
+          .single();
+        if (!cancelled && !error && data?.wall_prefs && typeof data.wall_prefs === 'object') {
+          const merged = { ...DEFAULT_WALL_PREFS, ...(data.wall_prefs as Partial<WallViewPrefs>) };
+          setPrefs(merged);
+          try {
+            localStorage.setItem(WALL_PREFS_STORAGE_KEY, JSON.stringify(merged));
+          } catch {
+            // ignore
+          }
+        }
+      } catch {
+        // keep localStorage fallback
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, userId]);
 
   useEffect(() => {
     async function load() {
@@ -681,6 +725,7 @@ export default function UserWallPage() {
                     onClick={() => {
                       setPrefs(DEFAULT_WALL_PREFS);
                       try { localStorage.setItem(WALL_PREFS_STORAGE_KEY, JSON.stringify(DEFAULT_WALL_PREFS)); } catch { /* ignore */ }
+                      void saveRemotePrefs(DEFAULT_WALL_PREFS);
                     }}
                     className="inline-flex items-center gap-1.5 text-xs text-white/50 hover:text-white transition-colors"
                   >
