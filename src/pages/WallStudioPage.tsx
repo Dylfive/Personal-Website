@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { SlidersHorizontal, FlaskConical, Loader2, X, Star, Calendar, Clock, Disc3, Music, Moon, Sun, Sparkles } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { SlidersHorizontal, FlaskConical, Loader2, X, Star, Calendar, Clock, Disc3, Music, Moon, Sun, Sparkles, Cloud, CloudOff } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserAlbums } from '../lib/albumStore';
 import type { AlbumEntry } from '../types/album';
@@ -14,8 +14,9 @@ import type {
 import { MAX_WALL_ALBUMS } from '../types/wallStudio';
 import {
   getAlbumKey,
-  loadWallStudioState,
+  loadWallStudioStateRemote,
   saveWallStudioState,
+  saveWallStudioStateRemote,
   createGridLayout,
   createScatteredLayout,
   createShelfLayout,
@@ -37,16 +38,22 @@ export default function WallStudioPage() {
   const [selectedStickerId, setSelectedStickerId] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(true);
   const [inspectedAlbum, setInspectedAlbum] = useState<AlbumEntry | null>(null);
+  const [syncStatus, setSyncStatus] = useState<'synced' | 'saving' | 'local' | 'needs-sql'>('local');
+  const hydratedRef = useRef(false);
+  const pendingSaveRef = useRef<WallStudioState | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    hydratedRef.current = false;
     async function load() {
       setLoading(true);
       const data = await getUserAlbums(user?.id);
       const visible = data.filter((a) => !a.IsHidden);
+      const { state, synced, missingColumn } = await loadWallStudioStateRemote(user?.id, visible);
       if (!cancelled) {
         setAlbums(visible);
-        setStudio(loadWallStudioState(user?.id, visible));
+        setStudio(state);
+        setSyncStatus(missingColumn ? 'needs-sql' : synced ? 'synced' : 'local');
         setLoading(false);
       }
     }
@@ -57,10 +64,54 @@ export default function WallStudioPage() {
   }, [user?.id]);
 
   useEffect(() => {
-    if (studio && !loading) {
-      saveWallStudioState(user?.id, studio);
+    if (!studio || loading) return;
+    // Skip the very first render right after remote hydration
+    if (!hydratedRef.current) {
+      hydratedRef.current = true;
+      return;
     }
+
+    saveWallStudioState(user?.id, studio);
+
+    if (!user?.id) {
+      setSyncStatus('local');
+      return;
+    }
+
+    pendingSaveRef.current = studio;
+    setSyncStatus('saving');
+    const timer = window.setTimeout(async () => {
+      const toSave = pendingSaveRef.current;
+      if (!toSave) return;
+      pendingSaveRef.current = null;
+      const { ok, missingColumn } = await saveWallStudioStateRemote(user.id, toSave);
+      setSyncStatus(missingColumn ? 'needs-sql' : ok ? 'synced' : 'local');
+    }, 600);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
   }, [studio, user?.id, loading]);
+
+  // Flush any pending remote save if the user closes/switches tabs
+  useEffect(() => {
+    const flush = () => {
+      if (document.visibilityState === 'hidden' && pendingSaveRef.current && user?.id) {
+        const toSave = pendingSaveRef.current;
+        pendingSaveRef.current = null;
+        void saveWallStudioStateRemote(user.id, toSave);
+      }
+    };
+    document.addEventListener('visibilitychange', flush);
+    return () => {
+      document.removeEventListener('visibilitychange', flush);
+      if (pendingSaveRef.current && user?.id) {
+        const toSave = pendingSaveRef.current;
+        pendingSaveRef.current = null;
+        void saveWallStudioStateRemote(user.id, toSave);
+      }
+    };
+  }, [user?.id]);
 
   const albumMap = useMemo(() => {
     const map = new Map<string, AlbumEntry>();
@@ -263,16 +314,45 @@ export default function WallStudioPage() {
         }}
       >
         <div>
-          <div
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[9px] mb-2"
-            style={{
-              fontFamily: '"Press Start 2P", monospace',
-              backgroundColor: theme.accent,
-              color: theme.accentText,
-              border: `2px solid ${theme.shellBorder}`,
-            }}
-          >
-            <FlaskConical className="w-3 h-3" /> PIXEL STUDIO
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            <div
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[9px]"
+              style={{
+                fontFamily: '"Press Start 2P", monospace',
+                backgroundColor: theme.accent,
+                color: theme.accentText,
+                border: `2px solid ${theme.shellBorder}`,
+              }}
+            >
+              <FlaskConical className="w-3 h-3" /> PIXEL STUDIO
+            </div>
+            <div
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[9px]"
+              style={{
+                fontFamily: '"Press Start 2P", monospace',
+                backgroundColor: theme.badgeBg,
+                color: syncStatus === 'needs-sql' ? '#f87171' : theme.textMuted,
+                border: `2px solid ${theme.shellBorder}`,
+              }}
+              title={
+                syncStatus === 'needs-sql'
+                  ? 'Run: ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS wall_studio JSONB;'
+                  : 'Syncs across devices on your account'
+              }
+            >
+              {syncStatus === 'synced' || syncStatus === 'saving' ? (
+                <Cloud className="w-3 h-3" />
+              ) : (
+                <CloudOff className="w-3 h-3" />
+              )}
+              {syncStatus === 'saving'
+                ? 'SAVING...'
+                : syncStatus === 'synced'
+                ? 'CLOUD SYNCED'
+                : syncStatus === 'needs-sql'
+                ? 'SYNC NEEDS SQL'
+                : 'LOCAL ONLY'}
+            </div>
           </div>
           <h1
             className="text-xl sm:text-2xl tracking-tight leading-snug"

@@ -1,3 +1,4 @@
+import { supabase } from './supabase';
 import type { AlbumEntry } from '../types/album';
 import type {
   WallStudioState,
@@ -155,6 +156,25 @@ function storageKey(userId?: string): string {
   return `wall_studio_v1_${userId || 'guest'}`;
 }
 
+function normalizeWallStudioState(
+  parsed: Partial<WallStudioState>,
+  albums: AlbumEntry[]
+): WallStudioState {
+  const validKeys = new Set(albums.map(getAlbumKey));
+  const items = (parsed.items ?? [])
+    .filter((it) => validKeys.has(it.albumKey))
+    .slice(0, MAX_WALL_ALBUMS);
+
+  return {
+    items,
+    stickers: Array.isArray(parsed.stickers) ? parsed.stickers : [],
+    background: { ...DEFAULT_BACKGROUND, ...(parsed.background ?? {}) },
+    customization: { ...DEFAULT_CUSTOMIZATION, ...(parsed.customization ?? {}) },
+    wallDrawingDataUrl:
+      typeof parsed.wallDrawingDataUrl === 'string' ? parsed.wallDrawingDataUrl : undefined,
+  };
+}
+
 export function loadWallStudioState(
   userId: string | undefined,
   albums: AlbumEntry[]
@@ -163,18 +183,7 @@ export function loadWallStudioState(
     const raw = localStorage.getItem(storageKey(userId));
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<WallStudioState>;
-      const validKeys = new Set(albums.map(getAlbumKey));
-      const items = (parsed.items ?? [])
-        .filter((it) => validKeys.has(it.albumKey))
-        .slice(0, MAX_WALL_ALBUMS);
-
-      return {
-        items,
-        stickers: Array.isArray(parsed.stickers) ? parsed.stickers : [],
-        background: { ...DEFAULT_BACKGROUND, ...(parsed.background ?? {}) },
-        customization: { ...DEFAULT_CUSTOMIZATION, ...(parsed.customization ?? {}) },
-        wallDrawingDataUrl: typeof parsed.wallDrawingDataUrl === 'string' ? parsed.wallDrawingDataUrl : undefined,
-      };
+      return normalizeWallStudioState(parsed, albums);
     }
   } catch {
     // ignore malformed storage
@@ -196,5 +205,73 @@ export function saveWallStudioState(
     localStorage.setItem(storageKey(userId), JSON.stringify(state));
   } catch {
     // ignore quota errors
+  }
+}
+
+/**
+ * Loads the user's Studio Wall state from Supabase (`user_profiles.wall_studio`),
+ * falling back to `localStorage` if offline or not yet migrated.
+ */
+export async function loadWallStudioStateRemote(
+  userId: string | undefined,
+  albums: AlbumEntry[]
+): Promise<{ state: WallStudioState; synced: boolean; missingColumn?: boolean }> {
+  const localState = loadWallStudioState(userId, albums);
+  if (!userId) return { state: localState, synced: false };
+
+  try {
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .select('wall_studio')
+      .eq('user_id', userId)
+      .single();
+
+    if (error) {
+      const missingColumn = error.message?.toLowerCase().includes('wall_studio');
+      return { state: localState, synced: false, missingColumn };
+    }
+
+    if (data && data.wall_studio && typeof data.wall_studio === 'object') {
+      const remoteState = normalizeWallStudioState(
+        data.wall_studio as Partial<WallStudioState>,
+        albums
+      );
+      saveWallStudioState(userId, remoteState);
+      return { state: remoteState, synced: true };
+    }
+
+    // No remote state yet — seed Supabase with local state if user has one
+    const hasLocal = !!localStorage.getItem(storageKey(userId));
+    if (hasLocal) {
+      await saveWallStudioStateRemote(userId, localState);
+    }
+    return { state: localState, synced: true };
+  } catch {
+    return { state: localState, synced: false };
+  }
+}
+
+/**
+ * Persists the user's Studio Wall state to Supabase (`user_profiles.wall_studio`).
+ * Requires: `ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS wall_studio JSONB;`
+ */
+export async function saveWallStudioStateRemote(
+  userId: string | undefined,
+  state: WallStudioState
+): Promise<{ ok: boolean; missingColumn?: boolean }> {
+  if (!userId) return { ok: false };
+  try {
+    const { error } = await supabase
+      .from('user_profiles')
+      .update({ wall_studio: state })
+      .eq('user_id', userId);
+
+    if (error) {
+      const missingColumn = error.message?.toLowerCase().includes('wall_studio');
+      return { ok: false, missingColumn };
+    }
+    return { ok: true };
+  } catch {
+    return { ok: false };
   }
 }
