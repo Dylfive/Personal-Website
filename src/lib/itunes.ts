@@ -105,6 +105,38 @@ export async function fetchArtistAlbums(
   return unique;
 }
 
+/** Searches iTunes for matching albums by album name. */
+export async function searchItunesAlbums(
+  query: string,
+  signal?: AbortSignal
+): Promise<ItunesAlbum[]> {
+  const trimmed = query.trim();
+  if (!trimmed) return [];
+
+  const url = `https://itunes.apple.com/search?term=${encodeURIComponent(
+    trimmed
+  )}&entity=album&limit=40`;
+  const res = await fetch(url, { signal });
+  if (!res.ok) {
+    throw new Error('Failed to search albums on iTunes');
+  }
+
+  const data = await res.json();
+  const albums: ItunesAlbum[] = (data.results || []).filter(
+    (r: ItunesAlbum) =>
+      r.wrapperType === 'collection' &&
+      (!r.collectionType || r.collectionType === 'Album') &&
+      Boolean(r.collectionId && r.collectionName)
+  );
+
+  const seen = new Set<number>();
+  return albums.filter((a) => {
+    if (seen.has(a.collectionId)) return false;
+    seen.add(a.collectionId);
+    return true;
+  });
+}
+
 /** Searches iTunes for a single best-matching studio album. */
 export async function searchItunesAlbum(
   albumName: string,

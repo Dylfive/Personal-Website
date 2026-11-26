@@ -78,6 +78,7 @@ export interface WallCustomizationConfig {
   showWallTrim: boolean;
   binTheme: BinTheme;
   binDarkMode: boolean;
+  pixelateAlbums?: boolean;
 }
 
 export interface WallStudioState {
@@ -85,6 +86,8 @@ export interface WallStudioState {
   stickers: WallSticker[];
   background: WallBackgroundConfig;
   customization: WallCustomizationConfig;
+  /** Base64 PNG data URL of the 160x100 pixel-art wall drawing overlay */
+  wallDrawingDataUrl?: string;
 }
 
 export const MAX_WALL_ALBUMS = 24;

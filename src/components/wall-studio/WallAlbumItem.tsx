@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   RotateCw,
   ZoomIn,
@@ -27,6 +27,7 @@ interface WallAlbumItemProps {
   showRating: boolean;
   showTitle: boolean;
   snapToGrid: boolean;
+  pixelateAlbums: boolean;
   theme: PixelThemeTokens;
   canvasRef: React.RefObject<HTMLDivElement | null>;
   onSelect: () => void;
@@ -35,6 +36,103 @@ interface WallAlbumItemProps {
   onSendBackward: () => void;
   onRemove: () => void;
   onDragStateChange: (dragging: boolean) => void;
+}
+
+/**
+ * Renders an album cover with a 32x32 pixel-art downsample + 16-bit palette quantization
+ * when `enabled` is true. Falls back gracefully if CORS blocks pixel readback.
+ */
+function PixelatedCover({ src, alt, enabled }: { src: string; alt: string; enabled: boolean }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    if (!enabled) {
+      setReady(false);
+      return;
+    }
+    let cancelled = false;
+    const GRID = 32;
+
+    const renderToCanvas = (img: HTMLImageElement, quantize: boolean) => {
+      const canvas = canvasRef.current;
+      if (!canvas || cancelled) return;
+      canvas.width = GRID;
+      canvas.height = GRID;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.imageSmoothingEnabled = false;
+      ctx.clearRect(0, 0, GRID, GRID);
+      ctx.drawImage(img, 0, 0, GRID, GRID);
+
+      if (quantize) {
+        try {
+          const imgData = ctx.getImageData(0, 0, GRID, GRID);
+          const data = imgData.data;
+          const levels = 6; // 6 levels per channel -> crisp retro 16-bit palette
+          const step = 255 / (levels - 1);
+          for (let i = 0; i < data.length; i += 4) {
+            data[i] = Math.round(Math.round(data[i] / step) * step);
+            data[i + 1] = Math.round(Math.round(data[i + 1] / step) * step);
+            data[i + 2] = Math.round(Math.round(data[i + 2] / step) * step);
+          }
+          ctx.putImageData(imgData, 0, 0);
+        } catch {
+          // CORS prevented getImageData; 32x32 downsampled drawImage still looks pixelated
+        }
+      }
+      if (!cancelled) setReady(true);
+    };
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => renderToCanvas(img, true);
+    img.onerror = () => {
+      // Retry without crossOrigin so downsampled pixelation still works
+      const fallback = new Image();
+      fallback.onload = () => renderToCanvas(fallback, false);
+      fallback.src = src;
+    };
+    img.src = src;
+
+    return () => {
+      cancelled = true;
+    };
+  }, [src, enabled]);
+
+  if (!enabled) {
+    return (
+      <img
+        src={src}
+        alt={alt}
+        draggable={false}
+        className="w-full h-full object-cover pointer-events-none"
+      />
+    );
+  }
+
+  return (
+    <div className="relative w-full h-full">
+      <canvas
+        ref={canvasRef}
+        aria-label={alt}
+        className="w-full h-full block pointer-events-none"
+        style={{
+          imageRendering: 'pixelated',
+          opacity: ready ? 1 : 0,
+        }}
+      />
+      {!ready && (
+        <img
+          src={src}
+          alt={alt}
+          draggable={false}
+          className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+          style={{ imageRendering: 'pixelated' }}
+        />
+      )}
+    </div>
+  );
 }
 
 const FRAME_CYCLE: FrameStyle[] = [
@@ -72,6 +170,7 @@ export default function WallAlbumItem({
   showRating,
   showTitle,
   snapToGrid,
+  pixelateAlbums,
   theme,
   canvasRef,
   onSelect,
@@ -315,11 +414,10 @@ export default function WallAlbumItem({
       >
         <div className="relative aspect-square w-full overflow-hidden bg-zinc-900">
           {hasCover ? (
-            <img
-              src={album.CoverArt}
+            <PixelatedCover
+              src={album.CoverArt!}
               alt={`${String(album.Album)} by ${album.Artist}`}
-              draggable={false}
-              className="w-full h-full object-cover pointer-events-none"
+              enabled={pixelateAlbums}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-zinc-800">

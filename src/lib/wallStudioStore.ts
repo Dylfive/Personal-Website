@@ -73,6 +73,7 @@ export const DEFAULT_CUSTOMIZATION: WallCustomizationConfig = {
   showWallTrim: true,
   binTheme: 'cupid-pink',
   binDarkMode: true,
+  pixelateAlbums: false,
 };
 
 export function createGridLayout(albums: AlbumEntry[], count = 12): WallItem[] {
@@ -171,6 +172,7 @@ export function loadWallStudioState(
         stickers: Array.isArray(parsed.stickers) ? parsed.stickers : [],
         background: { ...DEFAULT_BACKGROUND, ...(parsed.background ?? {}) },
         customization: { ...DEFAULT_CUSTOMIZATION, ...(parsed.customization ?? {}) },
+        wallDrawingDataUrl: typeof parsed.wallDrawingDataUrl === 'string' ? parsed.wallDrawingDataUrl : undefined,
       };
     }
   } catch {

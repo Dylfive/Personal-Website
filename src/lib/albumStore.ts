@@ -391,54 +391,6 @@ export async function updateUserAlbumRankOrders(
   return { ok, error: ok ? undefined : lastError };
 }
 
-/**
- * Recovery helper: re-insert any albums from the canonical GitHub dataset
- * (`Album-Data.json`) that are missing from this user's collection.
- *
- * Safe to run repeatedly — only missing albums are added, existing rows are
- * never modified or deleted. Intended for the owner account, whose canonical
- * data lives in the repo dataset (user_albums rows were the only casualties of
- * the old delete-then-insert bug).
- */
-export async function restoreUserAlbumsFromSeed(
-  userId: string
-): Promise<{ restored: number; skipped: number }> {
-  const seed = rawAlbumData as AlbumEntry[];
-  const current = await getUserAlbums(userId);
-  const owned = new Set(current.map((a) => String(a.Album).toLowerCase().trim()));
-
-  const missing = seed.filter(
-    (a) => !owned.has(String(a.Album).toLowerCase().trim())
-  );
-
-  if (missing.length > 0) {
-    const rows = missing.map((a) => ({
-      user_id: userId,
-      album: String(a.Album),
-      artist: a.Artist,
-      rating: a.Rating,
-      genre: a.Genre,
-      release_year: a['Release Year'],
-      length: a.Length,
-      cover_art: a.CoverArt ?? '',
-      apple_music_link: a.AppleMusicLink ?? '',
-      track_count: a.TrackCount ?? 0,
-      exact_release_date: a.ExactReleaseDate ?? '',
-      rank_order: a.RankOrder ?? null,
-    }));
-    const { error } = await supabase.from('user_albums').insert(rows);
-    if (error) {
-      console.error('restoreUserAlbumsFromSeed insert error:', error.message);
-      return { restored: 0, skipped: owned.size };
-    }
-  }
-
-  const refreshed = await getUserAlbums(userId);
-  localStorage.setItem(`albums_user_${userId}`, JSON.stringify(refreshed));
-
-  return { restored: missing.length, skipped: owned.size };
-}
-
 export async function seedUserAlbums(userId: string): Promise<AlbumEntry[]> {
   const seedData = rawAlbumData as AlbumEntry[];
   localStorage.setItem(`albums_user_${userId}`, JSON.stringify(seedData));

@@ -15,6 +15,7 @@ import {
   type ItunesArtist,
   type ItunesAlbum,
   searchItunesArtists,
+  searchItunesAlbums,
   fetchArtistAlbums,
   upgradeArtworkUrl,
   isSingleOrEp,
@@ -32,12 +33,15 @@ export default function ArtistAlbumBrowser({
   onSelectAlbum,
 }: ArtistAlbumBrowserProps) {
   const [query, setQuery] = useState('');
+  const [albumQuery, setAlbumQuery] = useState('');
+  const [searchSource, setSearchSource] = useState<'artist' | 'album'>('artist');
   const [artists, setArtists] = useState<ItunesArtist[]>([]);
   const [selectedArtist, setSelectedArtist] = useState<ItunesArtist | null>(null);
   const [albums, setAlbums] = useState<ItunesAlbum[]>([]);
   const [showSingles, setShowSingles] = useState(false);
 
   const [isSearchingArtists, setIsSearchingArtists] = useState(false);
+  const [isSearchingAlbums, setIsSearchingAlbums] = useState(false);
   const [isLoadingAlbums, setIsLoadingAlbums] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,7 +63,7 @@ export default function ArtistAlbumBrowser({
   // Debounced artist search
   useEffect(() => {
     const trimmed = query.trim();
-    if (!trimmed) return;
+    if (!trimmed || searchSource !== 'artist') return;
 
     const controller = new AbortController();
     const timer = setTimeout(async () => {
@@ -89,11 +93,40 @@ export default function ArtistAlbumBrowser({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [query]);
+  }, [query, searchSource]);
+
+  // Debounced direct album search
+  useEffect(() => {
+    const trimmed = albumQuery.trim();
+    if (!trimmed || searchSource !== 'album') return;
+
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      setIsSearchingAlbums(true);
+      setError(null);
+      try {
+        const found = await searchItunesAlbums(trimmed, controller.signal);
+        setAlbums(found);
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') return;
+        setError(err instanceof Error ? err.message : 'Failed to search albums.');
+        setAlbums([]);
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsSearchingAlbums(false);
+        }
+      }
+    }, 400);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [albumQuery, searchSource]);
 
   // Fetch discography whenever selectedArtist changes
   useEffect(() => {
-    if (!selectedArtist) return;
+    if (!selectedArtist || searchSource !== 'artist') return;
 
     const controller = new AbortController();
     const loadDiscography = async () => {
@@ -122,12 +155,35 @@ export default function ArtistAlbumBrowser({
 
   const handleQueryChange = (newQuery: string) => {
     setQuery(newQuery);
-    if (!newQuery.trim()) {
+    if (newQuery.trim()) {
+      setSearchSource('artist');
+    } else {
       setArtists([]);
       setSelectedArtist(null);
-      setAlbums([]);
       setError(null);
       setIsSearchingArtists(false);
+      if (albumQuery.trim()) {
+        setSearchSource('album');
+      } else {
+        setAlbums([]);
+      }
+    }
+  };
+
+  const handleAlbumQueryChange = (newQuery: string) => {
+    setAlbumQuery(newQuery);
+    if (newQuery.trim()) {
+      setSearchSource('album');
+      setArtists([]);
+      setSelectedArtist(null);
+    } else {
+      setError(null);
+      setIsSearchingAlbums(false);
+      if (query.trim()) {
+        setSearchSource('artist');
+      } else {
+        setAlbums([]);
+      }
     }
   };
 
@@ -166,36 +222,72 @@ export default function ArtistAlbumBrowser({
 
   return (
     <div className="space-y-6">
-      {/* Artist Search Bar */}
-      <div className="relative">
-        <label className="block text-sm font-medium text-white/70 mb-2">
-          Search Artist
-        </label>
+      {/* Search Bars: Artist & Album */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Artist Search Bar */}
         <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-            {isSearchingArtists ? (
-              <Loader2 className="w-5 h-5 text-neon-purple animate-spin" />
-            ) : (
-              <Search className="w-5 h-5 text-white/40" />
+          <label className="block text-sm font-medium text-white/70 mb-2">
+            Search Artist
+          </label>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+              {isSearchingArtists ? (
+                <Loader2 className="w-5 h-5 text-neon-purple animate-spin" />
+              ) : (
+                <Search className="w-5 h-5 text-white/40" />
+              )}
+            </div>
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => handleQueryChange(e.target.value)}
+              placeholder="e.g. Pink Floyd, Radiohead..."
+              className="w-full pl-11 pr-10 py-3.5 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-neon-purple text-white transition-all placeholder:text-white/30"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => handleQueryChange('')}
+                aria-label="Clear artist search"
+                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-white/40 hover:text-white/80 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
             )}
           </div>
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => handleQueryChange(e.target.value)}
-            placeholder="e.g. Pink Floyd, Radiohead, Kendrick Lamar..."
-            className="w-full pl-11 pr-10 py-3.5 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-neon-purple text-white transition-all placeholder:text-white/30"
-          />
-          {query && (
-            <button
-              type="button"
-              onClick={() => handleQueryChange('')}
-              aria-label="Clear artist search"
-              className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-white/40 hover:text-white/80 transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
+        </div>
+
+        {/* Album Search Bar */}
+        <div className="relative">
+          <label className="block text-sm font-medium text-white/70 mb-2">
+            Search Album
+          </label>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+              {isSearchingAlbums ? (
+                <Loader2 className="w-5 h-5 text-neon-purple animate-spin" />
+              ) : (
+                <Disc3 className="w-5 h-5 text-white/40" />
+              )}
+            </div>
+            <input
+              type="text"
+              value={albumQuery}
+              onChange={(e) => handleAlbumQueryChange(e.target.value)}
+              placeholder="e.g. Blonde, OK Computer, Igor..."
+              className="w-full pl-11 pr-10 py-3.5 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-neon-purple text-white transition-all placeholder:text-white/30"
+            />
+            {albumQuery && (
+              <button
+                type="button"
+                onClick={() => handleAlbumQueryChange('')}
+                aria-label="Clear album search"
+                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-white/40 hover:text-white/80 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -255,24 +347,41 @@ export default function ArtistAlbumBrowser({
         </div>
       )}
 
-      {/* Loading Discography */}
-      {isLoadingAlbums && (
+      {/* Loading Discography / Album Search */}
+      {(isLoadingAlbums || isSearchingAlbums) && (
         <div className="flex flex-col items-center justify-center py-12 text-white/50 gap-3">
           <Loader2 className="w-8 h-8 animate-spin text-neon-purple" />
           <p className="text-sm">
-            Loading {selectedArtist?.artistName}&apos;s albums...
+            {searchSource === 'album'
+              ? `Searching albums for "${albumQuery.trim()}"...`
+              : `Loading ${selectedArtist?.artistName}'s albums...`}
           </p>
         </div>
       )}
 
       {/* Empty States */}
-      {!isSearchingArtists && !isLoadingAlbums && query.trim() && artists.length === 0 && !error && (
+      {searchSource === 'artist' && !isSearchingArtists && !isLoadingAlbums && query.trim() && artists.length === 0 && !error && (
         <div className="text-center py-10 text-white/40 text-sm">
           No artists found for &ldquo;{query.trim()}&rdquo;. Try another name or switch to Manual Entry.
         </div>
       )}
 
-      {!isLoadingAlbums && selectedArtist && visibleAlbums.length === 0 && !error && (
+      {searchSource === 'album' && !isSearchingAlbums && albumQuery.trim() && visibleAlbums.length === 0 && !error && (
+        <div className="text-center py-10 text-white/40 text-sm">
+          No albums found for &ldquo;{albumQuery.trim()}&rdquo;.
+          {singlesCount > 0 && !showSingles && (
+            <button
+              type="button"
+              onClick={() => setShowSingles(true)}
+              className="ml-1.5 text-neon-purple hover:underline"
+            >
+              Show {singlesCount} Singles &amp; EPs?
+            </button>
+          )}
+        </div>
+      )}
+
+      {searchSource === 'artist' && !isLoadingAlbums && selectedArtist && visibleAlbums.length === 0 && !error && (
         <div className="text-center py-10 text-white/40 text-sm">
           No studio albums found for {selectedArtist.artistName}.
           {singlesCount > 0 && !showSingles && (
@@ -288,13 +397,26 @@ export default function ArtistAlbumBrowser({
       )}
 
       {/* Visual Album Grid */}
-      {!isLoadingAlbums && visibleAlbums.length > 0 && (
+      {!isLoadingAlbums && !isSearchingAlbums && visibleAlbums.length > 0 && (
         <div className="space-y-3">
-          <div className="flex items-center justify-between text-xs text-white/40">
+          <div className="flex items-center justify-between text-xs text-white/40 gap-2 flex-wrap">
             <span>
               Click an album to rate &amp; add it ({visibleAlbums.length}{' '}
               {visibleAlbums.length === 1 ? 'release' : 'releases'})
             </span>
+            {searchSource === 'album' && singlesCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowSingles((v) => !v)}
+                className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+                  showSingles
+                    ? 'bg-neon-purple/20 border-neon-purple/40 text-white'
+                    : 'bg-white/5 border-white/10 text-white/50 hover:text-white/80'
+                }`}
+              >
+                {showSingles ? 'Hide' : 'Show'} Singles &amp; EPs ({singlesCount})
+              </button>
+            )}
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 max-h-[460px] overflow-y-auto pr-1">
             {visibleAlbums.map((album) => {
@@ -334,9 +456,14 @@ export default function ArtistAlbumBrowser({
                     )}
                   </div>
 
-                  <p className="text-sm font-semibold text-white line-clamp-2 leading-snug mb-1">
+                  <p className="text-sm font-semibold text-white line-clamp-2 leading-snug mb-0.5">
                     {album.collectionName}
                   </p>
+                  {searchSource === 'album' && (
+                    <p className="text-xs text-white/65 truncate mb-1">
+                      {album.artistName}
+                    </p>
+                  )}
                   <p className="text-xs text-white/45 mt-auto">
                     {[year, album.trackCount ? `${album.trackCount} tracks` : '']
                       .filter(Boolean)

@@ -4,10 +4,10 @@ import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion
 import {
   ChevronRight, ChevronLeft, Music, Star, Calendar, Clock,
   Trophy, Disc3, Search, ArrowUpDown, BarChart2, Plus, Pencil,
-  GripVertical, Palette, Eye, RotateCcw
+  GripVertical, Palette, Eye
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { getUserAlbums, updateUserAlbum, updateUserAlbumRankOrders, restoreUserAlbumsFromSeed } from '../lib/albumStore';
+import { getUserAlbums, updateUserAlbum, updateUserAlbumRankOrders } from '../lib/albumStore';
 import { useTheme } from '../contexts/ThemeContext';
 import ThemePicker from './ThemePicker';
 
@@ -938,7 +938,6 @@ const MusicDashboard: React.FC<MusicDashboardProps> = ({ onAddAlbumClick, onEdit
   const [loading, setLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [showThemePicker, setShowThemePicker] = useState(false);
-  const [restoreMsg, setRestoreMsg] = useState<string | null>(null);
 
   const isOwner = user?.email === OWNER_EMAIL;
   const displayName = nickname ?? (user?.email ? user.email.split('@')[0] : 'Music');
@@ -960,23 +959,6 @@ const MusicDashboard: React.FC<MusicDashboardProps> = ({ onAddAlbumClick, onEdit
   useEffect(() => {
     loadAlbums();
   }, [user?.id]);
-
-  const handleRestoreFromSeed = async () => {
-    if (!user?.id || !isOwner) return;
-    if (!window.confirm('Re-insert the albums missing from your collection using the canonical dataset? Existing albums are untouched.')) return;
-    try {
-      const { restored } = await restoreUserAlbumsFromSeed(user.id);
-      setRestoreMsg(
-        restored > 0
-          ? `Restored ${restored} missing album(s) from the canonical dataset.`
-          : 'Collection already matches the canonical dataset.'
-      );
-      loadAlbums();
-    } catch (err) {
-      console.error('Restore failed', err);
-      setRestoreMsg('Restore failed — check the console.');
-    }
-  };
 
   const baseSortedAlbums = useMemo(
     () => [...albums].sort((a, b) => b.Rating - a.Rating),
@@ -1079,18 +1061,8 @@ const MusicDashboard: React.FC<MusicDashboardProps> = ({ onAddAlbumClick, onEdit
           </p>
         </div>
 
-        {/* Owner recovery + theme controls */}
+        {/* Theme controls */}
         <div className="flex items-center gap-2">
-          {isOwner && (
-            <button
-              onClick={() => void handleRestoreFromSeed()}
-              title="Re-insert the albums missing from your collection using the canonical dataset (owner only)"
-              className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-white flex items-center gap-2 transition-all"
-            >
-              <RotateCcw className="w-4 h-4 text-[color:var(--accent-primary)]" />
-              Restore Albums
-            </button>
-          )}
           <button
             onClick={() => setShowThemePicker(!showThemePicker)}
             title="Customize UI Color Theme"
@@ -1100,9 +1072,6 @@ const MusicDashboard: React.FC<MusicDashboardProps> = ({ onAddAlbumClick, onEdit
             Color Theme
           </button>
         </div>
-        {restoreMsg && (
-          <p className="text-xs text-white/50 mt-2">{restoreMsg}</p>
-        )}
       </div>
 
       {/* Theme Picker Drawer */}

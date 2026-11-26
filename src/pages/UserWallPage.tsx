@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Star, Calendar, Music, Search,
-  X, ArrowLeft, AlignLeft, Trophy, Palette, Loader2, Pencil,
+  X, ArrowLeft, AlignLeft, Trophy, Palette, Loader2, Pencil, SlidersHorizontal, RotateCcw,
 } from 'lucide-react';
 import { getUserAlbumsForProfile, getUserProfile } from '../lib/profileStore';
 import type { AlbumEntry } from '../types/album';
@@ -116,11 +116,92 @@ function sortedAlbums(albums: AlbumEntry[], mode: SortMode, hues?: Map<string, n
   }
 }
 
+// ─── Wall Customization Preferences ──────────────────────────────────────────
+type RankOverlayMode = 'auto' | 'always' | 'off';
+type TileSizeMode = 'xs' | 'sm' | 'md' | 'lg';
+type GapSizeMode = 'tight' | 'normal' | 'airy';
+type BorderTypeMode = 'none' | 'subtle' | 'rating' | 'vinyl' | 'polaroid';
+type CornerStyleMode = 'rounded' | 'sharp' | 'pill';
+type TitleOverlayMode = 'hover' | 'always' | 'off';
+
+interface WallViewPrefs {
+  showRating: boolean;
+  rankMode: RankOverlayMode;
+  tileSize: TileSizeMode;
+  gapSize: GapSizeMode;
+  borderType: BorderTypeMode;
+  cornerStyle: CornerStyleMode;
+  titleOverlay: TitleOverlayMode;
+}
+
+const DEFAULT_WALL_PREFS: WallViewPrefs = {
+  showRating: true,
+  rankMode: 'auto',
+  tileSize: 'md',
+  gapSize: 'normal',
+  borderType: 'none',
+  cornerStyle: 'rounded',
+  titleOverlay: 'hover',
+};
+
+const WALL_PREFS_STORAGE_KEY = 'album_wall_view_prefs_v1';
+
+function loadWallPrefs(): WallViewPrefs {
+  try {
+    const raw = localStorage.getItem(WALL_PREFS_STORAGE_KEY);
+    if (!raw) return DEFAULT_WALL_PREFS;
+    return { ...DEFAULT_WALL_PREFS, ...JSON.parse(raw) };
+  } catch {
+    return DEFAULT_WALL_PREFS;
+  }
+}
+
+const TILE_MIN_PX: Record<TileSizeMode, number> = {
+  xs: 105,
+  sm: 132,
+  md: 160,
+  lg: 210,
+};
+
+const GAP_CLASS: Record<GapSizeMode, string> = {
+  tight: 'gap-1.5',
+  normal: 'gap-3.5',
+  airy: 'gap-6',
+};
+
+const CORNER_CLASS: Record<CornerStyleMode, string> = {
+  rounded: 'rounded-xl',
+  sharp: 'rounded-none',
+  pill: 'rounded-3xl',
+};
+
 // ─── Album Wall Tile ──────────────────────────────────────────────────────────
-function WallTile({ album, rank, onClick }: { album: AlbumEntry; rank: number; onClick: () => void }) {
+function WallTile({
+  album,
+  rank,
+  prefs,
+  onClick,
+}: {
+  album: AlbumEntry;
+  rank: number;
+  prefs: WallViewPrefs;
+  onClick: () => void;
+}) {
   const [hovered, setHovered] = useState(false);
   const hasCover = album.CoverArt && album.CoverArt !== 'Not Found';
   const color = ratingColor(album.Rating);
+  const cornerCls = CORNER_CLASS[prefs.cornerStyle];
+
+  const isPolaroid = prefs.borderType === 'polaroid';
+  const borderStyle: React.CSSProperties = {};
+  if (prefs.borderType === 'subtle') {
+    borderStyle.border = '1px solid rgba(255,255,255,0.16)';
+  } else if (prefs.borderType === 'rating') {
+    borderStyle.border = `2px solid ${color}`;
+  } else if (prefs.borderType === 'vinyl') {
+    borderStyle.border = '4px solid #18181b';
+    borderStyle.outline = '1px solid rgba(255,255,255,0.12)';
+  }
 
   return (
     <motion.div
@@ -129,8 +210,11 @@ function WallTile({ album, rank, onClick }: { album: AlbumEntry; rank: number; o
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.8 }}
       transition={{ duration: 0.22 }}
-      className="relative aspect-square rounded-xl overflow-hidden cursor-pointer"
+      className={`relative overflow-hidden cursor-pointer ${cornerCls} ${
+        isPolaroid ? 'bg-[#f6f3ec] p-1.5 pb-2.5 flex flex-col' : 'aspect-square'
+      }`}
       style={{
+        ...borderStyle,
         boxShadow: hovered ? `0 0 0 2px ${color}, 0 12px 36px rgba(0,0,0,0.7)` : '0 2px 8px rgba(0,0,0,0.5)',
         transform: hovered ? 'scale(1.07) translateZ(0)' : 'scale(1) translateZ(0)',
         transition: 'box-shadow 0.18s ease, transform 0.18s ease',
@@ -140,57 +224,80 @@ function WallTile({ album, rank, onClick }: { album: AlbumEntry; rank: number; o
       onMouseLeave={() => setHovered(false)}
       onClick={onClick}
     >
-      {hasCover ? (
-        <img
-          src={album.CoverArt}
-          alt={`${String(album.Album)} by ${album.Artist}`}
-          className="w-full h-full object-cover"
-          loading="lazy"
-          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-        />
-      ) : (
-        <div
-          className="w-full h-full flex items-center justify-center"
-          style={{ background: generateGradient(String(album.Album) + album.Artist) }}
-        >
-          <Music className="w-6 h-6 text-white/20" />
-        </div>
-      )}
+      <div className={`relative w-full aspect-square overflow-hidden ${isPolaroid ? 'rounded-sm' : ''}`}>
+        {hasCover ? (
+          <img
+            src={album.CoverArt}
+            alt={`${String(album.Album)} by ${album.Artist}`}
+            className="w-full h-full object-cover"
+            loading="lazy"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+          />
+        ) : (
+          <div
+            className="w-full h-full flex items-center justify-center"
+            style={{ background: generateGradient(String(album.Album) + album.Artist) }}
+          >
+            <Music className="w-6 h-6 text-white/20" />
+          </div>
+        )}
 
-      {/* Rank badge */}
-      {rank > 0 && (
-        <div className="absolute top-2 left-2 bg-black/75 backdrop-blur-sm rounded-md px-1.5 py-0.5 z-10 border border-white/10">
-          <span className="text-[11px] font-black text-white leading-none">#{rank}</span>
-        </div>
-      )}
+        {/* Rank badge */}
+        {rank > 0 && (
+          <div className="absolute top-2 left-2 bg-black/75 backdrop-blur-sm rounded-md px-1.5 py-0.5 z-10 border border-white/10">
+            <span className="text-[11px] font-black text-white leading-none">#{rank}</span>
+          </div>
+        )}
 
-      {/* Rating badge */}
-      <div
-        className="absolute top-2 right-2 rounded-lg px-2 py-1 z-10 text-xs sm:text-sm font-black leading-none shadow-[0_2px_10px_rgba(0,0,0,0.65)] border border-white/20"
-        style={{ background: `${color}eb`, color: '#fff', backdropFilter: 'blur(6px)' }}
-      >
-        {album.Rating.toFixed(1)}
+        {/* Rating badge */}
+        {prefs.showRating && (
+          <div
+            className="absolute top-2 right-2 rounded-lg px-2 py-1 z-10 text-xs sm:text-sm font-black leading-none shadow-[0_2px_10px_rgba(0,0,0,0.65)] border border-white/20"
+            style={{ background: `${color}eb`, color: '#fff', backdropFilter: 'blur(6px)' }}
+          >
+            {album.Rating.toFixed(1)}
+          </div>
+        )}
+
+        {/* Title overlay (always or hover, when not polaroid) */}
+        {!isPolaroid && prefs.titleOverlay === 'always' && (
+          <div
+            className="absolute inset-x-0 bottom-0 flex flex-col justify-end z-20 p-2.5 pointer-events-none"
+            style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.9) 35%, transparent 100%)' }}
+          >
+            <p className="text-white text-xs sm:text-sm font-bold leading-tight truncate">{String(album.Album)}</p>
+            <p className="text-white/65 text-[11px] truncate mt-0.5">{album.Artist}</p>
+          </div>
+        )}
+
+        {!isPolaroid && prefs.titleOverlay === 'hover' && (
+          <AnimatePresence>
+            {hovered && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.12 }}
+                className="absolute inset-0 flex flex-col justify-end z-20"
+                style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.93) 50%, transparent 100%)' }}
+              >
+                <div className="p-3">
+                  <p className="text-white text-sm font-bold leading-tight truncate">{String(album.Album)}</p>
+                  <p className="text-white/65 text-xs truncate mt-0.5">{album.Artist}</p>
+                  <p className="text-white/40 text-[11px] mt-0.5">{album['Release Year']}</p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        )}
       </div>
 
-      {/* Hover overlay */}
-      <AnimatePresence>
-        {hovered && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.12 }}
-            className="absolute inset-0 flex flex-col justify-end z-20"
-            style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.93) 50%, transparent 100%)' }}
-          >
-            <div className="p-3">
-              <p className="text-white text-sm font-bold leading-tight truncate">{String(album.Album)}</p>
-              <p className="text-white/65 text-xs truncate mt-0.5">{album.Artist}</p>
-              <p className="text-white/40 text-[11px] mt-0.5">{album['Release Year']}</p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {isPolaroid && (
+        <div className="pt-1.5 px-1 text-center">
+          <p className="text-zinc-900 text-xs font-bold leading-tight truncate">{String(album.Album)}</p>
+          <p className="text-zinc-500 text-[11px] truncate">{album.Artist}</p>
+        </div>
+      )}
     </motion.div>
   );
 }
@@ -374,6 +481,20 @@ export default function UserWallPage() {
   const [hues, setHues] = useState<Map<string, number>>(new Map());
   const [colorExtracting, setColorExtracting] = useState(false);
   const extractionStarted = useRef(false);
+  const [prefs, setPrefs] = useState<WallViewPrefs>(loadWallPrefs);
+  const [customizeOpen, setCustomizeOpen] = useState(false);
+
+  const updatePrefs = (patch: Partial<WallViewPrefs>) => {
+    setPrefs((prev) => {
+      const next = { ...prev, ...patch };
+      try {
+        localStorage.setItem(WALL_PREFS_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // ignore storage quota errors
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     async function load() {
@@ -539,7 +660,249 @@ export default function UserWallPage() {
             <span className="text-[10px] text-white/30 font-mono">0° → 360°</span>
           </motion.div>
         )}
+
+        {/* Customize Wall Toggle */}
+        <button
+          type="button"
+          onClick={() => setCustomizeOpen((v) => !v)}
+          className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold border transition-all duration-200 ${
+            customizeOpen
+              ? 'bg-white text-black border-white'
+              : 'bg-white/[0.06] border-white/15 text-white/80 hover:text-white hover:border-white/30'
+          }`}
+        >
+          <SlidersHorizontal className="w-3.5 h-3.5" />
+          Customize
+        </button>
         </div>
+
+        {/* Collapsible Wall Customization Menu */}
+        <AnimatePresence>
+          {customizeOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="w-full overflow-hidden"
+            >
+              <div className="glass-panel rounded-2xl border border-white/10 p-4 sm:p-5 mt-1">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <SlidersHorizontal className="w-4 h-4 text-[color:var(--accent-primary)]" />
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-white/80">
+                      Wall Customization
+                    </h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPrefs(DEFAULT_WALL_PREFS);
+                      try { localStorage.setItem(WALL_PREFS_STORAGE_KEY, JSON.stringify(DEFAULT_WALL_PREFS)); } catch { /* ignore */ }
+                    }}
+                    className="inline-flex items-center gap-1.5 text-xs text-white/50 hover:text-white transition-colors"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    Reset Defaults
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+                  {/* Rating Overlay */}
+                  <div className="space-y-1.5">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-white/45">
+                      Rating Overlay
+                    </span>
+                    <div className="flex gap-1.5">
+                      {[
+                        { label: 'Show', val: true },
+                        { label: 'Hide', val: false },
+                      ].map((opt) => (
+                        <button
+                          key={opt.label}
+                          type="button"
+                          onClick={() => updatePrefs({ showRating: opt.val })}
+                          className={`flex-1 py-1.5 rounded-lg font-semibold border transition-colors ${
+                            prefs.showRating === opt.val
+                              ? 'bg-[color:var(--accent-primary)] text-white border-[color:var(--accent-primary)]'
+                              : 'bg-white/5 text-white/60 border-white/10 hover:text-white'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Number / Rank Overlay */}
+                  <div className="space-y-1.5">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-white/45">
+                      Number Overlay (#)
+                    </span>
+                    <div className="flex gap-1.5">
+                      {([
+                        { id: 'auto', label: 'Best Only' },
+                        { id: 'always', label: 'Always' },
+                        { id: 'off', label: 'Off' },
+                      ] as const).map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => updatePrefs({ rankMode: opt.id })}
+                          className={`flex-1 py-1.5 rounded-lg font-semibold border transition-colors ${
+                            prefs.rankMode === opt.id
+                              ? 'bg-[color:var(--accent-primary)] text-white border-[color:var(--accent-primary)]'
+                              : 'bg-white/5 text-white/60 border-white/10 hover:text-white'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Tile Size */}
+                  <div className="space-y-1.5">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-white/45">
+                      Tile Size
+                    </span>
+                    <div className="flex gap-1.5">
+                      {([
+                        { id: 'xs', label: 'XS' },
+                        { id: 'sm', label: 'S' },
+                        { id: 'md', label: 'M' },
+                        { id: 'lg', label: 'L' },
+                      ] as const).map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => updatePrefs({ tileSize: opt.id })}
+                          className={`flex-1 py-1.5 rounded-lg font-semibold border transition-colors ${
+                            prefs.tileSize === opt.id
+                              ? 'bg-[color:var(--accent-primary)] text-white border-[color:var(--accent-primary)]'
+                              : 'bg-white/5 text-white/60 border-white/10 hover:text-white'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Grid Spacing */}
+                  <div className="space-y-1.5">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-white/45">
+                      Spacing
+                    </span>
+                    <div className="flex gap-1.5">
+                      {([
+                        { id: 'tight', label: 'Tight' },
+                        { id: 'normal', label: 'Normal' },
+                        { id: 'airy', label: 'Airy' },
+                      ] as const).map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => updatePrefs({ gapSize: opt.id })}
+                          className={`flex-1 py-1.5 rounded-lg font-semibold border transition-colors ${
+                            prefs.gapSize === opt.id
+                              ? 'bg-[color:var(--accent-primary)] text-white border-[color:var(--accent-primary)]'
+                              : 'bg-white/5 text-white/60 border-white/10 hover:text-white'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Border Type */}
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-white/45">
+                      Border Type
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {([
+                        { id: 'none', label: 'None' },
+                        { id: 'subtle', label: 'Subtle' },
+                        { id: 'rating', label: 'Rating Glow' },
+                        { id: 'vinyl', label: 'Vinyl Sleeve' },
+                        { id: 'polaroid', label: 'Polaroid' },
+                      ] as const).map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => updatePrefs({ borderType: opt.id })}
+                          className={`px-3 py-1.5 rounded-lg font-semibold border transition-colors ${
+                            prefs.borderType === opt.id
+                              ? 'bg-[color:var(--accent-primary)] text-white border-[color:var(--accent-primary)]'
+                              : 'bg-white/5 text-white/60 border-white/10 hover:text-white'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Corner Style */}
+                  <div className="space-y-1.5">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-white/45">
+                      Corners
+                    </span>
+                    <div className="flex gap-1.5">
+                      {([
+                        { id: 'sharp', label: 'Sharp' },
+                        { id: 'rounded', label: 'Rounded' },
+                        { id: 'pill', label: 'Soft' },
+                      ] as const).map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => updatePrefs({ cornerStyle: opt.id })}
+                          className={`flex-1 py-1.5 rounded-lg font-semibold border transition-colors ${
+                            prefs.cornerStyle === opt.id
+                              ? 'bg-[color:var(--accent-primary)] text-white border-[color:var(--accent-primary)]'
+                              : 'bg-white/5 text-white/60 border-white/10 hover:text-white'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Title Overlay */}
+                  <div className="space-y-1.5">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-white/45">
+                      Title Overlay
+                    </span>
+                    <div className="flex gap-1.5">
+                      {([
+                        { id: 'hover', label: 'Hover' },
+                        { id: 'always', label: 'Always' },
+                        { id: 'off', label: 'Off' },
+                      ] as const).map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => updatePrefs({ titleOverlay: opt.id })}
+                          className={`flex-1 py-1.5 rounded-lg font-semibold border transition-colors ${
+                            prefs.titleOverlay === opt.id
+                              ? 'bg-[color:var(--accent-primary)] text-white border-[color:var(--accent-primary)]'
+                              : 'bg-white/5 text-white/60 border-white/10 hover:text-white'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Wall Grid */}
@@ -555,24 +918,31 @@ export default function UserWallPage() {
       ) : (
         <motion.div
           layout
-          className="grid gap-3.5"
-          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))' }}
+          className={`grid ${GAP_CLASS[prefs.gapSize]}`}
+          style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${TILE_MIN_PX[prefs.tileSize]}px, 1fr))` }}
         >
           <AnimatePresence mode="popLayout">
-            {sorted.map((album, idx) => (
-              <WallTile
-                key={`${String(album.Album)}-${album.Artist}`}
-                album={album}
-                rank={
-                  sortMode === 'rating_desc'
-                    ? byRating.findIndex(
-                        (a) => String(a.Album) === String(album.Album) && a.Artist === album.Artist
-                      ) + 1
-                    : 0
-                }
-                onClick={() => setSelectedIdx(idx)}
-              />
-            ))}
+            {sorted.map((album, idx) => {
+              const rank =
+                prefs.rankMode === 'off'
+                  ? 0
+                  : prefs.rankMode === 'always'
+                  ? idx + 1
+                  : sortMode === 'rating_desc'
+                  ? byRating.findIndex(
+                      (a) => String(a.Album) === String(album.Album) && a.Artist === album.Artist
+                    ) + 1
+                  : 0;
+              return (
+                <WallTile
+                  key={`${String(album.Album)}-${album.Artist}`}
+                  album={album}
+                  rank={rank}
+                  prefs={prefs}
+                  onClick={() => setSelectedIdx(idx)}
+                />
+              );
+            })}
           </AnimatePresence>
         </motion.div>
       )}

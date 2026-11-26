@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { SlidersHorizontal, FlaskConical, Loader2, X, Star, Calendar, Clock, Disc3, Music, Moon, Sun } from 'lucide-react';
+import { SlidersHorizontal, FlaskConical, Loader2, X, Star, Calendar, Clock, Disc3, Music, Moon, Sun, Sparkles } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserAlbums } from '../lib/albumStore';
 import type { AlbumEntry } from '../types/album';
@@ -171,6 +171,10 @@ export default function WallStudioPage() {
     if (selectedStickerId === id) setSelectedStickerId(null);
   };
 
+  const handleUpdateDrawing = (dataUrl: string | undefined) => {
+    setStudio((prev) => (prev ? { ...prev, wallDrawingDataUrl: dataUrl } : prev));
+  };
+
   const handlePinToWall = (album: AlbumEntry) => {
     const key = getAlbumKey(album);
     setStudio((prev) => {
@@ -284,7 +288,25 @@ export default function WallStudioPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            onClick={() =>
+              handleChangeCustomization({ pixelateAlbums: !studio.customization.pixelateAlbums })
+            }
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-[10px] cursor-pointer transition-transform active:translate-y-0.5"
+            style={{
+              fontFamily: '"Press Start 2P", monospace',
+              backgroundColor: studio.customization.pixelateAlbums ? theme.accent : theme.badgeBg,
+              color: studio.customization.pixelateAlbums ? theme.accentText : theme.textMain,
+              border: `3px solid ${theme.shellBorder}`,
+              boxShadow: pixelShadow(theme.shellBorder, 3),
+            }}
+            title="Toggle 16-bit pixel art filter on album covers"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            PIXEL FILTER
+          </button>
+
           <button
             onClick={() =>
               handleChangeCustomization({ binDarkMode: !studio.customization.binDarkMode })
@@ -332,6 +354,7 @@ export default function WallStudioPage() {
             albumMap={albumMap}
             background={studio.background}
             customization={studio.customization}
+            wallDrawingDataUrl={studio.wallDrawingDataUrl}
             theme={theme}
             selectedKey={selectedKey}
             selectedStickerId={selectedStickerId}
@@ -343,6 +366,7 @@ export default function WallStudioPage() {
             onRemoveItem={handleRemoveItem}
             onUpdateSticker={handleUpdateSticker}
             onRemoveSticker={handleRemoveSticker}
+            onUpdateDrawing={handleUpdateDrawing}
           />
         </div>
 

@@ -446,6 +446,7 @@ export default function CustomizationDrawer({
             { key: 'showTitles' as const, label: 'TITLES', val: customization.showTitles },
             { key: 'snapToGrid' as const, label: 'GRID', val: customization.snapToGrid, icon: <Magnet className="w-3 h-3" /> },
             { key: 'showWallTrim' as const, label: 'TRIM', val: customization.showWallTrim },
+            { key: 'pixelateAlbums' as const, label: 'PIXEL ART', val: !!customization.pixelateAlbums, icon: <Sparkles className="w-3 h-3" /> },
           ].map((item) => (
             <button
               key={item.key}

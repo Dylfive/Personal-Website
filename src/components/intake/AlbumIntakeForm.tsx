@@ -233,7 +233,7 @@ export default function AlbumIntakeForm({
                   <h2 className="text-2xl font-bold mb-1">Add New Album</h2>
                   <p className="text-white/50 text-sm">
                     {searchMode === 'browse'
-                      ? 'Search an artist to browse their albums visually.'
+                      ? 'Search by artist or album name to browse visually.'
                       : 'Enter the details and let AI do the rest.'}
                   </p>
                 </div>
@@ -250,7 +250,7 @@ export default function AlbumIntakeForm({
                     }`}
                   >
                     <Disc3 className="w-3.5 h-3.5" />
-                    Browse Artist
+                    Browse Visually
                   </button>
                   <button
                     type="button"
