@@ -28,6 +28,7 @@ interface WallAlbumItemProps {
   showTitle: boolean;
   snapToGrid: boolean;
   pixelateAlbums: boolean;
+  pixelateStrength: number;
   theme: PixelThemeTokens;
   canvasRef: React.RefObject<HTMLDivElement | null>;
   onSelect: () => void;
@@ -42,7 +43,17 @@ interface WallAlbumItemProps {
  * Renders an album cover with a 32x32 pixel-art downsample + 16-bit palette quantization
  * when `enabled` is true. Falls back gracefully if CORS blocks pixel readback.
  */
-function PixelatedCover({ src, alt, enabled }: { src: string; alt: string; enabled: boolean }) {
+function PixelatedCover({
+  src,
+  alt,
+  enabled,
+  strength,
+}: {
+  src: string;
+  alt: string;
+  enabled: boolean;
+  strength: number;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [ready, setReady] = useState(false);
 
@@ -52,7 +63,11 @@ function PixelatedCover({ src, alt, enabled }: { src: string; alt: string; enabl
       return;
     }
     let cancelled = false;
-    const GRID = 32;
+    const clamped = Math.max(1, Math.min(100, strength));
+    // Strength 1 -> 64x64 (subtle), 50 -> 40x40, 100 -> 16x16 (super chunky)
+    const GRID = Math.max(12, Math.round(64 - (clamped / 100) * 48));
+    // Strength 1 -> 12 levels/channel, 100 -> 4 levels/channel
+    const levels = Math.max(3, Math.round(12 - (clamped / 100) * 8));
 
     const renderToCanvas = (img: HTMLImageElement, quantize: boolean) => {
       const canvas = canvasRef.current;
@@ -69,7 +84,6 @@ function PixelatedCover({ src, alt, enabled }: { src: string; alt: string; enabl
         try {
           const imgData = ctx.getImageData(0, 0, GRID, GRID);
           const data = imgData.data;
-          const levels = 6; // 6 levels per channel -> crisp retro 16-bit palette
           const step = 255 / (levels - 1);
           for (let i = 0; i < data.length; i += 4) {
             data[i] = Math.round(Math.round(data[i] / step) * step);
@@ -78,7 +92,7 @@ function PixelatedCover({ src, alt, enabled }: { src: string; alt: string; enabl
           }
           ctx.putImageData(imgData, 0, 0);
         } catch {
-          // CORS prevented getImageData; 32x32 downsampled drawImage still looks pixelated
+          // CORS prevented getImageData; downsampled drawImage still looks pixelated
         }
       }
       if (!cancelled) setReady(true);
@@ -98,7 +112,7 @@ function PixelatedCover({ src, alt, enabled }: { src: string; alt: string; enabl
     return () => {
       cancelled = true;
     };
-  }, [src, enabled]);
+  }, [src, enabled, strength]);
 
   if (!enabled) {
     return (
@@ -171,6 +185,7 @@ export default function WallAlbumItem({
   showTitle,
   snapToGrid,
   pixelateAlbums,
+  pixelateStrength,
   theme,
   canvasRef,
   onSelect,
@@ -418,6 +433,7 @@ export default function WallAlbumItem({
               src={album.CoverArt!}
               alt={`${String(album.Album)} by ${album.Artist}`}
               enabled={pixelateAlbums}
+              strength={pixelateStrength}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-zinc-800">

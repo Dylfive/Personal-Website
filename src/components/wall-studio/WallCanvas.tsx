@@ -27,8 +27,7 @@ import { pixelShadow } from './pixelTheme';
 
 type CanvasTool = 'select' | 'pan' | 'draw' | 'erase';
 
-const DRAW_GRID_W = 160;
-const DRAW_GRID_H = 100;
+const PIXEL_CELL_PX = 8;
 
 const DRAW_COLORS = [
   '#ff4d79',
@@ -95,12 +94,33 @@ export default function WallCanvas({
   const [spacePressed, setSpacePressed] = useState(false);
 
   // Pixel drawing state
+  const [drawGrid, setDrawGrid] = useState({ w: 120, h: 80 });
   const [drawColor, setDrawColor] = useState('#ff4d79');
   const [brushSize, setBrushSize] = useState<1 | 2 | 3>(1);
   const [undoStack, setUndoStack] = useState<(string | undefined)[]>([]);
   const isDrawingRef = useRef(false);
   const lastPixelRef = useRef<{ x: number; y: number } | null>(null);
   const lastLoadedUrlRef = useRef<string | undefined>(undefined);
+
+  // Keep drawing canvas aspect ratio matched to the stage so pixels are 1:1 squares
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+
+    const updateSize = () => {
+      const cw = stage.clientWidth;
+      const ch = stage.clientHeight;
+      if (cw <= 0 || ch <= 0) return;
+      const nextW = Math.max(40, Math.round(cw / PIXEL_CELL_PX));
+      const nextH = Math.max(30, Math.round(ch / PIXEL_CELL_PX));
+      setDrawGrid((prev) => (prev.w === nextW && prev.h === nextH ? prev : { w: nextW, h: nextH }));
+    };
+
+    updateSize();
+    const ro = new ResizeObserver(updateSize);
+    ro.observe(stage);
+    return () => ro.disconnect();
+  }, []);
 
   // Spacebar shortcut for temporary pan mode
   useEffect(() => {
@@ -120,26 +140,26 @@ export default function WallCanvas({
     };
   }, []);
 
-  // Sync persisted drawing data URL into the 160x100 pixel canvas
+  // Sync persisted drawing data URL into the square-pixel canvas
   useEffect(() => {
     const canvas = drawCanvasRef.current;
     if (!canvas) return;
-    if (wallDrawingDataUrl === lastLoadedUrlRef.current) return;
     lastLoadedUrlRef.current = wallDrawingDataUrl;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.imageSmoothingEnabled = false;
-    ctx.clearRect(0, 0, DRAW_GRID_W, DRAW_GRID_H);
+    ctx.clearRect(0, 0, drawGrid.w, drawGrid.h);
 
     if (!wallDrawingDataUrl) return;
     const img = new Image();
     img.onload = () => {
-      ctx.clearRect(0, 0, DRAW_GRID_W, DRAW_GRID_H);
-      ctx.drawImage(img, 0, 0, DRAW_GRID_W, DRAW_GRID_H);
+      ctx.imageSmoothingEnabled = false;
+      ctx.clearRect(0, 0, drawGrid.w, drawGrid.h);
+      ctx.drawImage(img, 0, 0, drawGrid.w, drawGrid.h);
     };
     img.src = wallDrawingDataUrl;
-  }, [wallDrawingDataUrl]);
+  }, [wallDrawingDataUrl, drawGrid.w, drawGrid.h]);
 
   const effectivePanMode = tool === 'pan' || spacePressed;
 
@@ -190,11 +210,11 @@ export default function WallCanvas({
     const canvas = drawCanvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
-    const gx = Math.floor(((clientX - rect.left) / rect.width) * DRAW_GRID_W);
-    const gy = Math.floor(((clientY - rect.top) / rect.height) * DRAW_GRID_H);
+    const gx = Math.floor(((clientX - rect.left) / rect.width) * drawGrid.w);
+    const gy = Math.floor(((clientY - rect.top) / rect.height) * drawGrid.h);
     return {
-      x: Math.max(0, Math.min(DRAW_GRID_W - 1, gx)),
-      y: Math.max(0, Math.min(DRAW_GRID_H - 1, gy)),
+      x: Math.max(0, Math.min(drawGrid.w - 1, gx)),
+      y: Math.max(0, Math.min(drawGrid.h - 1, gy)),
     };
   };
 
@@ -296,7 +316,7 @@ export default function WallCanvas({
     setUndoStack((s) => [...s.slice(-19), wallDrawingDataUrl]);
     const canvas = drawCanvasRef.current;
     const ctx = canvas?.getContext('2d');
-    if (ctx) ctx.clearRect(0, 0, DRAW_GRID_W, DRAW_GRID_H);
+    if (ctx) ctx.clearRect(0, 0, drawGrid.w, drawGrid.h);
     lastLoadedUrlRef.current = undefined;
     onUpdateDrawing(undefined);
   };
@@ -408,6 +428,7 @@ export default function WallCanvas({
               showTitle={customization.showTitles}
               snapToGrid={customization.snapToGrid}
               pixelateAlbums={!!customization.pixelateAlbums}
+              pixelateStrength={customization.pixelateStrength ?? 50}
               theme={theme}
               canvasRef={stageRef}
               onSelect={() => {
@@ -446,8 +467,8 @@ export default function WallCanvas({
         {/* Whole-Wall Pixel Art Drawing Layer */}
         <canvas
           ref={drawCanvasRef}
-          width={DRAW_GRID_W}
-          height={DRAW_GRID_H}
+          width={drawGrid.w}
+          height={drawGrid.h}
           onPointerDown={handleDrawPointerDown}
           onPointerMove={handleDrawPointerMove}
           onPointerUp={commitDrawing}

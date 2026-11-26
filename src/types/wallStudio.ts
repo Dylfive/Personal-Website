@@ -14,7 +14,15 @@ export type FrameStyle =
 
 export type ShadowDepth = 'none' | 'soft' | 'deep';
 
-export type BinTheme = 'cupid-pink' | 'sky-blue' | 'cream-arcade' | 'dark-lofi';
+export type BinTheme =
+  | 'cupid-pink'
+  | 'sky-blue'
+  | 'cream-arcade'
+  | 'dark-lofi'
+  | 'site-theme'
+  | 'gameboy-mint'
+  | 'neon-cyber'
+  | 'sunset-peach';
 
 export type PixelStickerKind =
   | 'star'
@@ -79,6 +87,7 @@ export interface WallCustomizationConfig {
   binTheme: BinTheme;
   binDarkMode: boolean;
   pixelateAlbums?: boolean;
+  pixelateStrength?: number;
 }
 
 export interface WallStudioState {

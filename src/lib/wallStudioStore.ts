@@ -74,6 +74,7 @@ export const DEFAULT_CUSTOMIZATION: WallCustomizationConfig = {
   binTheme: 'cupid-pink',
   binDarkMode: true,
   pixelateAlbums: false,
+  pixelateStrength: 50,
 };
 
 export function createGridLayout(albums: AlbumEntry[], count = 12): WallItem[] {

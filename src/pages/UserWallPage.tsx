@@ -117,29 +117,27 @@ function sortedAlbums(albums: AlbumEntry[], mode: SortMode, hues?: Map<string, n
 }
 
 // ─── Wall Customization Preferences ──────────────────────────────────────────
+type RatingOverlayMode = 'always' | 'hover' | 'off';
 type RankOverlayMode = 'auto' | 'always' | 'off';
 type TileSizeMode = 'xs' | 'sm' | 'md' | 'lg';
 type GapSizeMode = 'tight' | 'normal' | 'airy';
-type BorderTypeMode = 'none' | 'subtle' | 'rating' | 'vinyl' | 'polaroid';
 type CornerStyleMode = 'rounded' | 'sharp' | 'pill';
 type TitleOverlayMode = 'hover' | 'always' | 'off';
 
 interface WallViewPrefs {
-  showRating: boolean;
+  ratingOverlay: RatingOverlayMode;
   rankMode: RankOverlayMode;
   tileSize: TileSizeMode;
   gapSize: GapSizeMode;
-  borderType: BorderTypeMode;
   cornerStyle: CornerStyleMode;
   titleOverlay: TitleOverlayMode;
 }
 
 const DEFAULT_WALL_PREFS: WallViewPrefs = {
-  showRating: true,
+  ratingOverlay: 'always',
   rankMode: 'auto',
   tileSize: 'md',
   gapSize: 'normal',
-  borderType: 'none',
   cornerStyle: 'rounded',
   titleOverlay: 'hover',
 };
@@ -150,7 +148,12 @@ function loadWallPrefs(): WallViewPrefs {
   try {
     const raw = localStorage.getItem(WALL_PREFS_STORAGE_KEY);
     if (!raw) return DEFAULT_WALL_PREFS;
-    return { ...DEFAULT_WALL_PREFS, ...JSON.parse(raw) };
+    const parsed = JSON.parse(raw) as Partial<WallViewPrefs> & { showRating?: boolean };
+    const migrated: Partial<WallViewPrefs> = { ...parsed };
+    if (!parsed.ratingOverlay && typeof parsed.showRating === 'boolean') {
+      migrated.ratingOverlay = parsed.showRating ? 'always' : 'off';
+    }
+    return { ...DEFAULT_WALL_PREFS, ...migrated };
   } catch {
     return DEFAULT_WALL_PREFS;
   }
@@ -191,17 +194,8 @@ function WallTile({
   const hasCover = album.CoverArt && album.CoverArt !== 'Not Found';
   const color = ratingColor(album.Rating);
   const cornerCls = CORNER_CLASS[prefs.cornerStyle];
-
-  const isPolaroid = prefs.borderType === 'polaroid';
-  const borderStyle: React.CSSProperties = {};
-  if (prefs.borderType === 'subtle') {
-    borderStyle.border = '1px solid rgba(255,255,255,0.16)';
-  } else if (prefs.borderType === 'rating') {
-    borderStyle.border = `2px solid ${color}`;
-  } else if (prefs.borderType === 'vinyl') {
-    borderStyle.border = '4px solid #18181b';
-    borderStyle.outline = '1px solid rgba(255,255,255,0.12)';
-  }
+  const showRatingBadge =
+    prefs.ratingOverlay === 'always' || (prefs.ratingOverlay === 'hover' && hovered);
 
   return (
     <motion.div
@@ -210,11 +204,8 @@ function WallTile({
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.8 }}
       transition={{ duration: 0.22 }}
-      className={`relative overflow-hidden cursor-pointer ${cornerCls} ${
-        isPolaroid ? 'bg-[#f6f3ec] p-1.5 pb-2.5 flex flex-col' : 'aspect-square'
-      }`}
+      className={`relative aspect-square overflow-hidden cursor-pointer ${cornerCls}`}
       style={{
-        ...borderStyle,
         boxShadow: hovered ? `0 0 0 2px ${color}, 0 12px 36px rgba(0,0,0,0.7)` : '0 2px 8px rgba(0,0,0,0.5)',
         transform: hovered ? 'scale(1.07) translateZ(0)' : 'scale(1) translateZ(0)',
         transition: 'box-shadow 0.18s ease, transform 0.18s ease',
@@ -224,79 +215,70 @@ function WallTile({
       onMouseLeave={() => setHovered(false)}
       onClick={onClick}
     >
-      <div className={`relative w-full aspect-square overflow-hidden ${isPolaroid ? 'rounded-sm' : ''}`}>
-        {hasCover ? (
-          <img
-            src={album.CoverArt}
-            alt={`${String(album.Album)} by ${album.Artist}`}
-            className="w-full h-full object-cover"
-            loading="lazy"
-            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-          />
-        ) : (
-          <div
-            className="w-full h-full flex items-center justify-center"
-            style={{ background: generateGradient(String(album.Album) + album.Artist) }}
-          >
-            <Music className="w-6 h-6 text-white/20" />
-          </div>
-        )}
-
-        {/* Rank badge */}
-        {rank > 0 && (
-          <div className="absolute top-2 left-2 bg-black/75 backdrop-blur-sm rounded-md px-1.5 py-0.5 z-10 border border-white/10">
-            <span className="text-[11px] font-black text-white leading-none">#{rank}</span>
-          </div>
-        )}
-
-        {/* Rating badge */}
-        {prefs.showRating && (
-          <div
-            className="absolute top-2 right-2 rounded-lg px-2 py-1 z-10 text-xs sm:text-sm font-black leading-none shadow-[0_2px_10px_rgba(0,0,0,0.65)] border border-white/20"
-            style={{ background: `${color}eb`, color: '#fff', backdropFilter: 'blur(6px)' }}
-          >
-            {album.Rating.toFixed(1)}
-          </div>
-        )}
-
-        {/* Title overlay (always or hover, when not polaroid) */}
-        {!isPolaroid && prefs.titleOverlay === 'always' && (
-          <div
-            className="absolute inset-x-0 bottom-0 flex flex-col justify-end z-20 p-2.5 pointer-events-none"
-            style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.9) 35%, transparent 100%)' }}
-          >
-            <p className="text-white text-xs sm:text-sm font-bold leading-tight truncate">{String(album.Album)}</p>
-            <p className="text-white/65 text-[11px] truncate mt-0.5">{album.Artist}</p>
-          </div>
-        )}
-
-        {!isPolaroid && prefs.titleOverlay === 'hover' && (
-          <AnimatePresence>
-            {hovered && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.12 }}
-                className="absolute inset-0 flex flex-col justify-end z-20"
-                style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.93) 50%, transparent 100%)' }}
-              >
-                <div className="p-3">
-                  <p className="text-white text-sm font-bold leading-tight truncate">{String(album.Album)}</p>
-                  <p className="text-white/65 text-xs truncate mt-0.5">{album.Artist}</p>
-                  <p className="text-white/40 text-[11px] mt-0.5">{album['Release Year']}</p>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        )}
-      </div>
-
-      {isPolaroid && (
-        <div className="pt-1.5 px-1 text-center">
-          <p className="text-zinc-900 text-xs font-bold leading-tight truncate">{String(album.Album)}</p>
-          <p className="text-zinc-500 text-[11px] truncate">{album.Artist}</p>
+      {hasCover ? (
+        <img
+          src={album.CoverArt}
+          alt={`${String(album.Album)} by ${album.Artist}`}
+          className="w-full h-full object-cover"
+          loading="lazy"
+          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+        />
+      ) : (
+        <div
+          className="w-full h-full flex items-center justify-center"
+          style={{ background: generateGradient(String(album.Album) + album.Artist) }}
+        >
+          <Music className="w-6 h-6 text-white/20" />
         </div>
+      )}
+
+      {/* Rank badge */}
+      {rank > 0 && (
+        <div className="absolute top-2 left-2 bg-black/75 backdrop-blur-sm rounded-md px-1.5 py-0.5 z-10 border border-white/10">
+          <span className="text-[11px] font-black text-white leading-none">#{rank}</span>
+        </div>
+      )}
+
+      {/* Rating badge */}
+      {showRatingBadge && (
+        <div
+          className="absolute top-2 right-2 rounded-lg px-2 py-1 z-20 text-xs sm:text-sm font-black leading-none shadow-[0_2px_10px_rgba(0,0,0,0.65)] border border-white/20"
+          style={{ background: `${color}eb`, color: '#fff', backdropFilter: 'blur(6px)' }}
+        >
+          {album.Rating.toFixed(1)}
+        </div>
+      )}
+
+      {/* Title overlay (always or hover) */}
+      {prefs.titleOverlay === 'always' && (
+        <div
+          className="absolute inset-x-0 bottom-0 flex flex-col justify-end z-20 p-2.5 pointer-events-none"
+          style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.9) 35%, transparent 100%)' }}
+        >
+          <p className="text-white text-xs sm:text-sm font-bold leading-tight truncate">{String(album.Album)}</p>
+          <p className="text-white/65 text-[11px] truncate mt-0.5">{album.Artist}</p>
+        </div>
+      )}
+
+      {prefs.titleOverlay === 'hover' && (
+        <AnimatePresence>
+          {hovered && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.12 }}
+              className="absolute inset-0 flex flex-col justify-end z-20"
+              style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.93) 50%, transparent 100%)' }}
+            >
+              <div className="p-3">
+                <p className="text-white text-sm font-bold leading-tight truncate">{String(album.Album)}</p>
+                <p className="text-white/65 text-xs truncate mt-0.5">{album.Artist}</p>
+                <p className="text-white/40 text-[11px] mt-0.5">{album['Release Year']}</p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       )}
     </motion.div>
   );
@@ -714,16 +696,17 @@ export default function UserWallPage() {
                       Rating Overlay
                     </span>
                     <div className="flex gap-1.5">
-                      {[
-                        { label: 'Show', val: true },
-                        { label: 'Hide', val: false },
-                      ].map((opt) => (
+                      {([
+                        { id: 'always', label: 'Always' },
+                        { id: 'hover', label: 'Hover' },
+                        { id: 'off', label: 'Off' },
+                      ] as const).map((opt) => (
                         <button
-                          key={opt.label}
+                          key={opt.id}
                           type="button"
-                          onClick={() => updatePrefs({ showRating: opt.val })}
+                          onClick={() => updatePrefs({ ratingOverlay: opt.id })}
                           className={`flex-1 py-1.5 rounded-lg font-semibold border transition-colors ${
-                            prefs.showRating === opt.val
+                            prefs.ratingOverlay === opt.id
                               ? 'bg-[color:var(--accent-primary)] text-white border-[color:var(--accent-primary)]'
                               : 'bg-white/5 text-white/60 border-white/10 hover:text-white'
                           }`}
@@ -806,35 +789,6 @@ export default function UserWallPage() {
                           onClick={() => updatePrefs({ gapSize: opt.id })}
                           className={`flex-1 py-1.5 rounded-lg font-semibold border transition-colors ${
                             prefs.gapSize === opt.id
-                              ? 'bg-[color:var(--accent-primary)] text-white border-[color:var(--accent-primary)]'
-                              : 'bg-white/5 text-white/60 border-white/10 hover:text-white'
-                          }`}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Border Type */}
-                  <div className="space-y-1.5 sm:col-span-2">
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-white/45">
-                      Border Type
-                    </span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {([
-                        { id: 'none', label: 'None' },
-                        { id: 'subtle', label: 'Subtle' },
-                        { id: 'rating', label: 'Rating Glow' },
-                        { id: 'vinyl', label: 'Vinyl Sleeve' },
-                        { id: 'polaroid', label: 'Polaroid' },
-                      ] as const).map((opt) => (
-                        <button
-                          key={opt.id}
-                          type="button"
-                          onClick={() => updatePrefs({ borderType: opt.id })}
-                          className={`px-3 py-1.5 rounded-lg font-semibold border transition-colors ${
-                            prefs.borderType === opt.id
                               ? 'bg-[color:var(--accent-primary)] text-white border-[color:var(--accent-primary)]'
                               : 'bg-white/5 text-white/60 border-white/10 hover:text-white'
                           }`}

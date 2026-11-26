@@ -58,10 +58,14 @@ const FRAME_OPTIONS: { id: FrameStyle; label: string }[] = [
 ];
 
 const BIN_THEMES: { id: BinTheme; label: string; swatch: string }[] = [
+  { id: 'site-theme', label: 'Site Theme', swatch: 'var(--accent-primary)' },
   { id: 'cupid-pink', label: 'Cupid Pink', swatch: '#ff8fab' },
   { id: 'sky-blue', label: 'Sky Blue', swatch: '#7cc6fe' },
   { id: 'cream-arcade', label: 'Arcade', swatch: '#f6d365' },
   { id: 'dark-lofi', label: 'Lavender', swatch: '#a78bfa' },
+  { id: 'gameboy-mint', label: 'GB Mint', swatch: '#9bbc0f' },
+  { id: 'neon-cyber', label: 'Neon Cyber', swatch: '#f72585' },
+  { id: 'sunset-peach', label: 'Peach', swatch: '#f4845f' },
 ];
 
 const STICKER_KINDS: PixelStickerKind[] = [
@@ -467,6 +471,37 @@ export default function CustomizationDrawer({
             </button>
           ))}
         </div>
+
+        {/* Pixel Art Filter Strength Slider */}
+        {customization.pixelateAlbums && (
+          <div
+            className="p-2 space-y-1"
+            style={{
+              backgroundColor: theme.badgeBg,
+              border: `2px solid ${theme.shellBorder}`,
+            }}
+          >
+            <div
+              className="flex items-center justify-between text-xs"
+              style={{ fontFamily: '"VT323", monospace', color: theme.textMain }}
+            >
+              <span>PIXEL STRENGTH</span>
+              <span>{customization.pixelateStrength ?? 50}%</span>
+            </div>
+            <input
+              type="range"
+              min={1}
+              max={100}
+              value={customization.pixelateStrength ?? 50}
+              onChange={(e) =>
+                onChangeCustomization({ pixelateStrength: Number(e.target.value) })
+              }
+              className="w-full accent-[color:var(--accent-primary)] cursor-pointer"
+              style={{ accentColor: theme.accent }}
+            />
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-1.5">
           <button
             onClick={() => onChangeBackground({ vignette: !background.vignette })}
